@@ -37,12 +37,14 @@ void printStockReport();
 void addItemToCart();
 void viewCart(); 
 void buyStock();
+void checkoutCart(const string& username);
 
 // Global data storage
 vector<User> users;
 vector<Stock> stocks;
 vector<Receipt> receipts;  // Store all receipts
 vector<pair<Stock, int>> cart; // Global cart to hold items added by users
+User* currentUser = nullptr;
 
 // ─── Main Function ──────────────────────────────────────────────
 int main() {
@@ -86,6 +88,10 @@ int main() {
         if (users.empty()) {
             users.emplace_back("admin", "adminpass", true);
             ExcelUtil::writeUsersToFile("data/users.xlsx", users);
+        }
+
+        receipts = ExcelUtil::readTransactionsFromFile("data/transactions.xlsx");
+        if (receipts.empty()) {
         }
 
         stocks = ExcelUtil::readStockFromFile("data/stock.xlsx");
@@ -219,6 +225,7 @@ void adminDashboard() {
             case 9:{
                 system("cls");
                 cout << "Logging out..." << endl;
+                currentUser = nullptr;
                 break;
             }
             default:
@@ -499,19 +506,20 @@ void userLogin() { // just add add to enable user to login or register
             getline(cin, password);
 
             bool loginSuccess = false;
-            for (const auto& user : users) {
+            for (auto& user : users) { // new correct
                 if (user.getUsername() == username && user.getPassword() == password && !user.isAdmin()) {
-                    loginSuccess = true;
+                currentUser = &user; // Assign the global pointer to the found user
                     break;
                 }
             }
-            if (loginSuccess) {
+            if (currentUser != nullptr) {
                 cout << "User login successful!" << endl;
                 staffDashboard(); // just add add to give access to user dashboard
             } else {
                 cout << "Invalid username or password, or you are an admin. Please use the admin login." << endl;
             }
             break;
+
         }
         case 3:{
             system("cls");
@@ -535,9 +543,10 @@ void staffDashboard() { // just add add for allowing staff actions
         cout << "  Welcome, To Our shop pls enjoy buying what you want !!" << endl;
         cout << "[1] Display All Stocks" << endl;
         cout << "[2] Search Stock" << endl;
-        cout << "[3] Buy Stock" << endl;
-        cout << "[4] Add Item to Cart" << endl; // Added Cart option
-        cout << "[5] View Cart" << endl;       // Added Cart option
+        // cout << "[3] Buy Stock" << endl;
+        cout << "[3] Add Item to Cart" << endl; // Added Cart option
+        cout << "[4] View Cart" << endl;       // Added Cart option
+        cout << "[5] Checkout the cart" << endl;
         cout << "[6] Logout" << endl;
         cout << "Enter your choice: ";
         cin >> choice;
@@ -555,26 +564,34 @@ void staffDashboard() { // just add add for allowing staff actions
                 searchStock();
                 break;
             }
+            // case 3:{
+            //     system("cls");
+            //     buyStock(); // just add add to allow purchasing items
+            //     break;
+            // }
             case 3:{
-                system("cls");
-                buyStock(); // just add add to allow purchasing items
-                break;
-            }
-            case 4:{
                 system("cls");
                 addItemToCart(); // Call the new function
                 break;
             }
-            case 5:{
+            case 4:{
                 system("cls");
                 viewCart(); // Call the new function
                 break;
             }
-            case 6:{
-                system("cls");
-                cout << "Logging out..." << endl;
+            case 5:
+                if (currentUser) {
+                    checkoutCart(currentUser->getUsername()); // Pass current user's username
+                } else {
+                    cout << "Error: No user logged in for checkout." << endl;
+                }
                 break;
-            }
+            case 6:
+                cout << "Logging out..." << endl;
+                currentUser = nullptr; // Clear current user on logout
+                break;
+
+
             default:
                 cout << "Invalid choice. Please try again." << endl;
                 break;
@@ -583,11 +600,10 @@ void staffDashboard() { // just add add for allowing staff actions
 }
 
 // Buy Stock Function (for staff)
+// Buy Stock Function (for staff)
 void buyStock() {
     int id, quantity;
-    cout << "+-----------------------+\n";
-    cout << "|        Buy Stock      |" << endl;
-    cout << "+-----------------------+\n";
+    cout << "\n--- Buy Stock ---" << endl;
     cout << "Enter stock ID to purchase: ";
     cin >> id;
     cout << "Enter quantity: ";
@@ -608,8 +624,10 @@ void buyStock() {
             // Create a receipt
             // Note: In a real-world app, receipt IDs would be persisted and tracked.
             // For now, we'll use a simple counter based on the global receipts vector size.
-            int receiptId = receipts.size() + 1;
-            Receipt newReceipt(receiptId, items);
+            //int receiptId = receipts.size() + 1;
+            int receiptId = ExcelUtil::getNextReceiptId(receipts);  
+            string username = (currentUser != nullptr) ? currentUser->getUsername() : "Guest";
+            Receipt newReceipt(receiptId, items, username); // Pass username to Receipt constructor
             receipts.push_back(newReceipt);
 
             // Update the stock quantity
@@ -687,8 +705,7 @@ void viewCart() {
     cout << "-------------------\n";
     cout << "Total: $" << total << endl;
 }
-#include <iomanip>
-#include <ctime>
+
 
 void printStockReport() {
     // ─── Current Date & Time ──────────────────────────────
@@ -756,5 +773,107 @@ void printStockReport() {
     }
 
     cout << "==========================================\n\n";
+        // Display recent transactions
+    cout << "\n--- Recent Transactions ---" << endl;
+    if (receipts.empty()) {
+        cout << "No transactions recorded yet." << endl;
+    } else {
+        int count = 0;
+        for (auto it = receipts.rbegin(); it != receipts.rend() && count < 5; ++it, ++count) {
+            time_t transactionTime = it->getTransactionTime();
+            tm ptm{};
+            if (localtime_s(&ptm, &transactionTime) == 0) {
+                cout << "Receipt ID: " << it->getReceiptId()
+                          << ", User: " << it->getUsername()
+                          << ", Total: $" << fixed << setprecision(2) << it->getTotalPrice()
+                          << ", Time: " << put_time(&ptm, "%Y-%m-%d %H:%M:%S") << endl;
+            } else {
+                cout << "Receipt ID: " << it->getReceiptId()
+                          << ", User: " << it->getUsername()
+                          << ", Total: $" << fixed << setprecision(2) << it->getTotalPrice()
+                          << ", Time: [Invalid Time]" << endl;
+            }
+
+            for (const auto& item : it->getItems()) {
+                cout << "    - " << item.first.getName()
+                          << " x " << item.second
+                          << " @ $" << item.first.getPrice() << endl;
+            }
+        }
+
+        if (receipts.size() > 5) {
+            cout << "(Displaying last 5 transactions. Total transactions: " << receipts.size() << ")" << endl;
+        }
+    }
 }
+// Function to checkout the cart
+void checkoutCart(const string& username) {
+    cout << "\n--- Checking out Cart ---\n";
+    if (cart.empty()) {
+        cout << "Your cart is empty. Nothing to checkout.\n";
+        return;
+    }
+
+    char confirm;
+    cout << "Confirm purchase of items in cart? (y/n): ";
+    cin >> confirm;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+    if (tolower(confirm) != 'y') {
+        cout << "Checkout cancelled.\n";
+        return;
+    }
+
+    int receiptId = ExcelUtil::getNextReceiptId(receipts);
+    vector<pair<Stock, int>> purchasedItemsForReceipt;
+    double totalCartPrice = 0.0;
+    bool transactionSuccessful = true;
+
+    for (auto& cart_item : cart) {
+        int id = cart_item.first.getId();
+        int quantityToBuy = cart_item.second;
+
+        auto stock_it = find_if(stocks.begin(), stocks.end(), [id](const Stock& s){
+            return s.getId() == id;
+        });
+
+        if (stock_it != stocks.end()) {
+            if (stock_it->getQuantity() >= quantityToBuy) {
+                stock_it->setQuantity(stock_it->getQuantity() - quantityToBuy);
+                purchasedItemsForReceipt.push_back({*stock_it, quantityToBuy});
+                totalCartPrice += stock_it->getPrice() * quantityToBuy;
+            } else {
+                cout << "Insufficient stock for " << stock_it->getName()
+                          << ". Available: " << stock_it->getQuantity() << ". Purchase failed for this item.\n";
+                transactionSuccessful = false;
+            }
+        } else {
+            cout << "Error: Item ID " << id << " not found in stock. Skipping.\n";
+            transactionSuccessful = false;
+        }
+    }
+
+    if (transactionSuccessful && !purchasedItemsForReceipt.empty()) {
+        Receipt newReceipt(receiptId, purchasedItemsForReceipt, username);
+        receipts.push_back(newReceipt);
+
+        ExcelUtil::writeStockToFile("data/stock.xlsx", stocks);
+        ExcelUtil::writeTransactionsToFile("data/transactions.xlsx", receipts);
+
+        cout << "\nCheckout successful!\n";
+        cout << "Receipt ID: " << newReceipt.getReceiptId() << endl;
+        cout << "Total amount: $" << fixed << setprecision(2) << newReceipt.getTotalPrice() << endl;
+        cout << "Thank you for your purchase, " << username << "!\n";
+        cart.clear();
+    } else if (!purchasedItemsForReceipt.empty()) {
+        cout << "\nCheckout partially successful. Some items could not be purchased due to insufficient stock.\n";
+        cart.clear();
+    } else {
+        cout << "\nCheckout failed. No items were successfully purchased.\n";
+        cart.clear();
+    }
+}
+
+
+
 

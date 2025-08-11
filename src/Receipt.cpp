@@ -2,8 +2,10 @@
 #include <numeric>
 
 // Constructor for the Receipt class
-Receipt::Receipt(int receiptId, const std::vector<std::pair<Stock, int>>& items)
-    : receiptId_(receiptId), items_(items) {
+// Receipt::Receipt(int receiptId, const std::vector<std::pair<Stock, int>>& items, const std::string& username)
+//     : receiptId_(receiptId), items_(items), username_(username) {
+Receipt::Receipt(int receiptId, const std::vector<std::pair<Stock, int>>& items, const std::string& username)
+    : receiptId_(receiptId), items_(items), username_(username) {
     // Calculate total price during object creation
     totalPrice_ = calculateTotalPrice();
     
@@ -27,6 +29,10 @@ double Receipt::getTotalPrice() const {
 
 std::time_t Receipt::getTransactionTime() const {
     return transactionTime_;
+}
+
+std::string Receipt::getUsername() const { // Implementation for username getter
+    return username_;
 }
 
 // Helper function to calculate the total price of all items in the receipt

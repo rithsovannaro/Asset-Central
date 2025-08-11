@@ -2,6 +2,9 @@
 #include <iostream>
 #include <filesystem> // For creating directories
 #include <numeric>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -147,6 +150,111 @@ int ExcelUtil::getNextStockId(const std::vector<Stock>& stocks) {
     for (const auto& stock : stocks) {
         if (stock.getId() > maxId) {
             maxId = stock.getId();
+        }
+    }
+    return maxId + 1;
+}
+void ExcelUtil::createTransactionsFile(const std::string& filename) {
+    ensureDirectoryExists("data");
+    xlnt::workbook wb;
+    xlnt::worksheet ws = wb.active_sheet();
+    ws.cell("A1").value("ReceiptID");
+    ws.cell("B1").value("Username");
+    ws.cell("C1").value("ItemID");
+    ws.cell("D1").value("ItemName");
+    ws.cell("E1").value("Quantity");
+    ws.cell("F1").value("PricePerUnit");
+    ws.cell("G1").value("TotalPrice");
+    ws.cell("H1").value("TransactionTime");
+    wb.save(filename);
+}
+
+std::vector<Receipt> ExcelUtil::readTransactionsFromFile(const std::string& filename) {
+    std::vector<Receipt> receipts;
+    ensureDirectoryExists("data");
+    if (!fs::exists(filename)) {
+        createTransactionsFile(filename);
+        return receipts;
+    }
+
+    try {
+        xlnt::workbook wb;
+        wb.load(filename);
+        xlnt::worksheet ws = wb.active_sheet();
+        for (auto row : ws.rows(false)) {
+            if (row[0].to_string() == "ReceiptID") continue;
+
+            try {
+                int receiptId = std::stoi(row[0].to_string());
+                std::string username = row[1].to_string();
+                int itemId = std::stoi(row[2].to_string());
+                std::string itemName = row[3].to_string();
+                int quantity = std::stoi(row[4].to_string());
+                double pricePerUnit = std::stod(row[5].to_string());
+
+                Stock purchasedItem(itemId, itemName, 0, pricePerUnit);
+                std::vector<std::pair<Stock, int>> items = {{purchasedItem, quantity}};
+                receipts.emplace_back(receiptId, items, username);
+            } catch (const std::exception& e) {
+                std::cerr << "Skipping malformed row in transactions file: " << e.what() << std::endl;
+            }
+        }
+    } catch (const xlnt::exception& e) {
+        std::cerr << "Error reading transactions file: " << e.what() << std::endl;
+    }
+    return receipts;
+}
+
+void ExcelUtil::writeTransactionsToFile(const std::string& filename, const std::vector<Receipt>& receipts) {
+    ensureDirectoryExists("data");
+    xlnt::workbook wb;
+    xlnt::worksheet ws = wb.active_sheet();
+    ws.cell("A1").value("ReceiptID");
+    ws.cell("B1").value("Username");
+    ws.cell("C1").value("ItemID");
+    ws.cell("D1").value("ItemName");
+    ws.cell("E1").value("Quantity");
+    ws.cell("F1").value("PricePerUnit");
+    ws.cell("G1").value("TotalPrice");
+    ws.cell("H1").value("TransactionTime");
+
+    int row_num = 2;
+    for (const auto& receipt : receipts) {
+        for (const auto& item_pair : receipt.getItems()) {
+            const Stock& stock_item = item_pair.first;
+            int quantity = item_pair.second;
+
+            ws.cell("A" + std::to_string(row_num)).value(receipt.getReceiptId());
+            ws.cell("B" + std::to_string(row_num)).value(receipt.getUsername());
+            ws.cell("C" + std::to_string(row_num)).value(stock_item.getId());
+            ws.cell("D" + std::to_string(row_num)).value(stock_item.getName());
+            ws.cell("E" + std::to_string(row_num)).value(quantity);
+            ws.cell("F" + std::to_string(row_num)).value(stock_item.getPrice());
+            ws.cell("G" + std::to_string(row_num)).value(stock_item.getPrice() * quantity);
+
+            // ✅ Safe localtime_s usage
+            std::time_t time = receipt.getTransactionTime();
+            std::tm ptm{};
+            if (localtime_s(&ptm, &time) == 0) {
+                std::ostringstream oss;
+                oss << std::put_time(&ptm, "%Y-%m-%d %H:%M:%S");
+                ws.cell("H" + std::to_string(row_num)).value(oss.str());
+            } else {
+                ws.cell("H" + std::to_string(row_num)).value("Invalid Time");
+            }
+
+            row_num++;
+        }
+    }
+    wb.save(filename);
+}
+
+int ExcelUtil::getNextReceiptId(const std::vector<Receipt>& receipts) {
+    if (receipts.empty()) return 1;
+    int maxId = 0;
+    for (const auto& receipt : receipts) {
+        if (receipt.getReceiptId() > maxId) {
+            maxId = receipt.getReceiptId();
         }
     }
     return maxId + 1;
