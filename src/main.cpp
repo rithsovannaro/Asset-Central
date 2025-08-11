@@ -8,6 +8,17 @@
 #include <stdexcept> // for exception handling
 #include <numeric> // for accumulate
 #include <ctime> // for time_t
+
+// Platform-specific includes for password masking
+#ifdef _WIN32
+    #include <conio.h>
+    #include <windows.h>
+#else
+    #include <termios.h>
+    #include <unistd.h>
+    #include <sys/types.h>
+#endif
+
 #include "../include/User.hpp"
 #include "../include/Stock.hpp"
 #include "../include/ExcelUtil.hpp"
@@ -32,6 +43,7 @@ void displayAllStocks();
 void trackInventory();
 void generateLowStockAlerts();
 void printStockReport();
+string getPasswordInput(const string& prompt);
 
 // for User
 void addItemToCart();
@@ -46,9 +58,95 @@ vector<Receipt> receipts;  // Store all receipts
 vector<pair<Stock, int>> cart; // Global cart to hold items added by users
 User* currentUser = nullptr;
 
+// ─── Improved Password Input with Masking Function ──────────────
+string getPasswordInput(const string& prompt) {
+    string password;
+    cout << prompt;
+    cout.flush(); // Ensure prompt is displayed immediately
+    
+#ifdef _WIN32
+    // Windows implementation
+    char ch;
+    while (true) {
+        ch = _getch();
+        
+        if (ch == '\r') { // Enter key
+            break;
+        } else if (ch == '\b') { // Backspace
+            if (!password.empty()) {
+                password.pop_back();
+                cout << "\b \b"; // Erase the asterisk
+                cout.flush();
+            }
+        } else if (ch >= 32 && ch <= 126) { // Printable characters
+            password += ch;
+            cout << '*';
+            cout.flush();
+        }
+        // Ignore other special characters
+    }
+    
+#else
+    // Unix/Linux implementation
+    struct termios oldTermios, newTermios;
+    
+    // Get current terminal attributes
+    if (tcgetattr(STDIN_FILENO, &oldTermios) != 0) {
+        // If we can't get terminal attributes, fall back to regular input
+        cout << "\nWarning: Cannot hide password input on this terminal." << endl;
+        cout << "Password: ";
+        getline(cin, password);
+        return password;
+    }
+    
+    // Set new terminal attributes (disable echo and canonical mode)
+    newTermios = oldTermios;
+    newTermios.c_lflag &= ~(ECHO | ICANON);
+    newTermios.c_cc[VMIN] = 1;
+    newTermios.c_cc[VTIME] = 0;
+    
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newTermios) != 0) {
+        // If we can't set terminal attributes, fall back to regular input
+        cout << "\nWarning: Cannot hide password input on this terminal." << endl;
+        cout << "Password: ";
+        getline(cin, password);
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldTermios);
+        return password;
+    }
+    
+    char ch;
+    while (true) {
+        if (read(STDIN_FILENO, &ch, 1) != 1) {
+            break; // Error reading
+        }
+        
+        if (ch == '\n' || ch == '\r') { // Enter key
+            break;
+        } else if (ch == 127 || ch == 8) { // DEL or Backspace
+            if (!password.empty()) {
+                password.pop_back();
+                cout << "\b \b"; // Erase the asterisk
+                cout.flush();
+            }
+        } else if (ch >= 32 && ch <= 126) { // Printable characters
+            password += ch;
+            cout << '*';
+            cout.flush();
+        }
+        // Ignore other control characters
+    }
+    
+    // Restore original terminal attributes
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldTermios);
+#endif
+    
+    cout << endl; // New line after password input
+    return password;
+}
+
 // ─── Main Function ──────────────────────────────────────────────
 int main() {
-   string lightBlue = "\033[94m";
+    string lightBlue = "\033[94m";
     string cyan = "\033[36m";
     string reset = "\033[0m";
 
@@ -80,7 +178,6 @@ int main() {
 
     cout << reset;
 
-
     try {
         DisplayUtil::displayWelcome();
 
@@ -91,8 +188,6 @@ int main() {
         }
 
         receipts = ExcelUtil::readTransactionsFromFile("data/transactions.xlsx");
-        if (receipts.empty()) {
-        }
 
         stocks = ExcelUtil::readStockFromFile("data/stock.xlsx");
         if (stocks.empty()) {
@@ -104,6 +199,7 @@ int main() {
 
         displayMainMenu();
     } catch (const exception& e) {
+        cout << "Error: " << e.what() << endl;
         return 1;
     }
 
@@ -114,21 +210,23 @@ int main() {
 void displayMainMenu() {
     int choice;
     do {
-    cout << "\033[94m-------Select the role for your Requirement-------" << endl;
-    cout << "\033[94m[1] Admin\033[0m" << endl;
-    cout << "\033[94m[2] User\033[0m" << endl;
-    cout << "\033[94m[3] Exit\033[0m" << endl;
-    cout << "\033[94mEnter your choice: ";
+        cout << "\033[94m-------Select the role for your Requirement-------" << endl;
+        cout << "\033[94m[1] Admin\033[0m" << endl;
+        cout << "\033[94m[2] User\033[0m" << endl;
+        cout << "\033[94m[3] Exit\033[0m" << endl;
+        cout << "\033[94mEnter your choice: ";
         cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
+        
         switch (choice) {
-            case 1:{
+            case 1: {
                 system("cls");
                 adminLogin();
                 break;
             }
-            case 2:{
+            case 2: {
                 system("cls");
-                userLogin(); // just add add to allow user login or registration
+                userLogin();
                 break;
             }
             case 3:
@@ -139,6 +237,7 @@ void displayMainMenu() {
         }
     } while (choice != 3);
 }
+
 // ─── Admin Login ────────────────────────────────────────────────
 void adminLogin() {
     string username, password;
@@ -147,13 +246,15 @@ void adminLogin() {
     cout << "+--------------------+\n";
 
     cout << "Username: ";
-    cin >> username;
-    cout << "Password: ";
-    cin >> password;
+    getline(cin, username);
+    
+    // Use the password masking function
+    password = getPasswordInput("Password: ");
 
     for (const auto& user : users) {
         if (user.getUsername() == username && user.getPassword() == password && user.isAdmin()) {
             cout << "Admin login successful!\n";
+            currentUser = const_cast<User*>(&user);
             adminDashboard();
             return;
         }
@@ -180,56 +281,57 @@ void adminDashboard() {
         cout << "[9] Logout\n";
         cout << "Enter your choice: ";
         cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
         switch(choice) {
-            case 1:{
+            case 1: {
                 system("cls");
                 addStock();
                 break;
             }
-            case 2:{
+            case 2: {
                 system("cls");
                 updateStock();
                 break;
             }
-            case 3:{
+            case 3: {
                 system("cls");
                 deleteStock();
                 break;
             }
-            case 4:{
+            case 4: {
                 system("cls");
                 searchStock();
                 break;
             }
-            case 5:{
+            case 5: {
                 system("cls");
                 displayAllStocks();
                 break;
             }
-            case 6:{
+            case 6: {
                 system("cls");
                 trackInventory();
                 break;
             }
-            case 7:{
+            case 7: {
                 system("cls");
                 generateLowStockAlerts(); 
                 break;
             }
-            case 8:{
+            case 8: {
                 system("cls");
                 printStockReport();
                 break;  
             }
-            case 9:{
+            case 9: {
                 system("cls");
                 cout << "Logging out..." << endl;
                 currentUser = nullptr;
                 break;
             }
             default:
-                cout << "Feature not yet implemented." << endl;
+                cout << "Invalid choice. Please try again." << endl;
                 break;
         }
     } while (choice != 9);
@@ -245,12 +347,12 @@ void addStock() {
     cout << "|    Add new Stock   |\n";
     cout << "+--------------------+\n";
     cout << "Enter stock name: ";
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
     getline(cin, name);
     cout << "Quantity: ";
     cin >> quantity;
     cout << "Price: ";
     cin >> price;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
     int newId = ExcelUtil::getNextStockId(stocks);
     stocks.emplace_back(newId, name, quantity, price);
@@ -267,6 +369,7 @@ void updateStock() {
     cout << "+--------------------+\n";
     cout << "Enter stock ID to update: ";
     cin >> id;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
     // Find the stock item by ID
     auto it = find_if(stocks.begin(), stocks.end(), [id](const Stock& s) {
@@ -280,6 +383,7 @@ void updateStock() {
         cout << "[3] Update Price" << endl;
         cout << "Enter your choice: ";
         cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
         string newName;
         int newQuantity;
@@ -288,7 +392,6 @@ void updateStock() {
         switch (choice) {
             case 1:
                 cout << "Enter new name: ";
-                cin.ignore(numeric_limits<streamsize>::max(), '\n');
                 getline(cin, newName);
                 it->setName(newName);
                 break;
@@ -322,6 +425,7 @@ void deleteStock() {
     cout << "+--------------------+\n";
     cout << "Enter stock ID: ";
     cin >> id;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
     auto it = find_if(stocks.begin(), stocks.end(), [id](const Stock& s) {
         return s.getId() == id;
@@ -332,7 +436,7 @@ void deleteStock() {
         ExcelUtil::writeStockToFile("data/stock.xlsx", stocks);
         cout << "Deleted stock with ID " << id << endl;
     } else {
-        cout << " Stock not found.\n";
+        cout << "Stock not found.\n";
     }
 }
 
@@ -345,6 +449,7 @@ void searchStock() {
     int id;
     cout << "Enter ID: ";
     cin >> id;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
     bool found = false;
     for (const auto& s : stocks) {
@@ -364,11 +469,11 @@ void searchStock() {
     }
 }
 
-
 // ─── Display All Stocks ─────────────────────────────────────────
 void displayAllStocks() {
     DisplayUtil::displayStocks(stocks);
 }
+
 void trackInventory() {
     cout << "+----------------------------------+\n";
     cout << "|    Inventory Tracking Summary    |" << endl;
@@ -417,9 +522,6 @@ void trackInventory() {
     }
 }
 
-// ─── Stub Functions ─────────────────────────────────────────────
-
-
 //Function Generate Low Stock Alerts
 void generateLowStockAlerts() {
     cout << "+----------------------------+\n";
@@ -445,17 +547,17 @@ void generateLowStockAlerts() {
     }
 }
 
-
 // Function to register a new user
-void userRegister() { // just add add for allowing new user registration
+void userRegister() {
     string username, password;
     cout << "+----------------------------+\n";
     cout << "|     User Registration      |" << endl;
     cout << "+----------------------------+\n";
     cout << "Enter new username: ";
     getline(cin, username);
-    cout << "Enter new password: ";
-    getline(cin, password);
+    
+    // Use password masking function for registration too
+    password = getPasswordInput("Enter new password: ");
 
     bool userExists = false;
     for (const auto& user : users) {
@@ -475,18 +577,17 @@ void userRegister() { // just add add for allowing new user registration
 }
 
 // Function for user login and registration menu
-void userLogin() { // just add add to enable user to login or register
+void userLogin() {
     int choice;
     cout << "+----------------------+\n";
     cout << "|       User Menu      |" << endl;
     cout << "+----------------------+\n";
     cout << "[1] Register" << endl;
-    cout << "[2] login" << endl;
+    cout << "[2] Login" << endl;
     cout << "[3] Back to Main Menu" << endl;
     cout << "Enter your choice: ";
     cin >> choice;
-
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
     switch (choice) {
         case 1: {
@@ -494,7 +595,7 @@ void userLogin() { // just add add to enable user to login or register
             userRegister();
             break;
         }
-        case 2:{
+        case 2: {
             system("cls");
             string username, password;
             cout << "+----------------------+\n";
@@ -502,26 +603,27 @@ void userLogin() { // just add add to enable user to login or register
             cout << "+----------------------+\n";
             cout << "Username: ";
             getline(cin, username);
-            cout << "Password: ";
-            getline(cin, password);
+            
+            // Use password masking function
+            password = getPasswordInput("Password: ");
 
-            bool loginSuccess = false;
-            for (auto& user : users) { // new correct
+            currentUser = nullptr;
+            for (auto& user : users) {
                 if (user.getUsername() == username && user.getPassword() == password && !user.isAdmin()) {
-                currentUser = &user; // Assign the global pointer to the found user
+                    currentUser = &user;
                     break;
                 }
             }
+            
             if (currentUser != nullptr) {
                 cout << "User login successful!" << endl;
-                staffDashboard(); // just add add to give access to user dashboard
+                staffDashboard();
             } else {
                 cout << "Invalid username or password, or you are an admin. Please use the admin login." << endl;
             }
             break;
-
         }
-        case 3:{
+        case 3: {
             system("cls");
             cout << "Returning to main menu..." << endl;
             break;
@@ -533,7 +635,7 @@ void userLogin() { // just add add to enable user to login or register
 }
 
 // Staff dashboard for regular users
-void staffDashboard() { // just add add for allowing staff actions
+void staffDashboard() {
     int choice;
     system("cls");
     do {
@@ -543,55 +645,46 @@ void staffDashboard() { // just add add for allowing staff actions
         cout << "  Welcome, To Our shop pls enjoy buying what you want !!" << endl;
         cout << "[1] Display All Stocks" << endl;
         cout << "[2] Search Stock" << endl;
-        // cout << "[3] Buy Stock" << endl;
-        cout << "[3] Add Item to Cart" << endl; // Added Cart option
-        cout << "[4] View Cart" << endl;       // Added Cart option
+        cout << "[3] Add Item to Cart" << endl;
+        cout << "[4] View Cart" << endl;
         cout << "[5] Checkout the cart" << endl;
         cout << "[6] Logout" << endl;
         cout << "Enter your choice: ";
         cin >> choice;
-
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
         switch(choice) {
-            case 1:{
+            case 1: {
                 system("cls");
                 displayAllStocks();
                 break;
             }
-            case 2:{
+            case 2: {
                 system("cls");
                 searchStock();
                 break;
             }
-            // case 3:{
-            //     system("cls");
-            //     buyStock(); // just add add to allow purchasing items
-            //     break;
-            // }
-            case 3:{
+            case 3: {
                 system("cls");
-                addItemToCart(); // Call the new function
+                addItemToCart();
                 break;
             }
-            case 4:{
+            case 4: {
                 system("cls");
-                viewCart(); // Call the new function
+                viewCart();
                 break;
             }
             case 5:
                 if (currentUser) {
-                    checkoutCart(currentUser->getUsername()); // Pass current user's username
+                    checkoutCart(currentUser->getUsername());
                 } else {
                     cout << "Error: No user logged in for checkout." << endl;
                 }
                 break;
             case 6:
                 cout << "Logging out..." << endl;
-                currentUser = nullptr; // Clear current user on logout
+                currentUser = nullptr;
                 break;
-
-
             default:
                 cout << "Invalid choice. Please try again." << endl;
                 break;
@@ -600,7 +693,6 @@ void staffDashboard() { // just add add for allowing staff actions
 }
 
 // Buy Stock Function (for staff)
-// Buy Stock Function (for staff)
 void buyStock() {
     int id, quantity;
     cout << "\n--- Buy Stock ---" << endl;
@@ -608,8 +700,7 @@ void buyStock() {
     cin >> id;
     cout << "Enter quantity: ";
     cin >> quantity;
-
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Clear buffer
 
     auto it = find_if(stocks.begin(), stocks.end(), [id](const Stock& s) {
         return s.getId() == id;
@@ -617,20 +708,14 @@ void buyStock() {
 
     if (it != stocks.end()) {
         if (it->getQuantity() >= quantity) {
-            // Create a temporary vector to hold the single item for the receipt
             vector<pair<Stock, int>> items;
             items.push_back({*it, quantity});
             
-            // Create a receipt
-            // Note: In a real-world app, receipt IDs would be persisted and tracked.
-            // For now, we'll use a simple counter based on the global receipts vector size.
-            //int receiptId = receipts.size() + 1;
             int receiptId = ExcelUtil::getNextReceiptId(receipts);  
             string username = (currentUser != nullptr) ? currentUser->getUsername() : "Guest";
-            Receipt newReceipt(receiptId, items, username); // Pass username to Receipt constructor
+            Receipt newReceipt(receiptId, items, username);
             receipts.push_back(newReceipt);
 
-            // Update the stock quantity
             it->setQuantity(it->getQuantity() - quantity);
             ExcelUtil::writeStockToFile("data/stock.xlsx", stocks);
 
@@ -706,7 +791,6 @@ void viewCart() {
     cout << "Total: $" << total << endl;
 }
 
-
 void printStockReport() {
     // ─── Current Date & Time ──────────────────────────────
     time_t now = time(nullptr);
@@ -764,16 +848,17 @@ void printStockReport() {
 
     if (mostStocked) {
         cout << " Most Stocked:   " << mostStocked->getName()
-             << " (" << mostStocked->getQuantity() << " item)\n";
+             << " (" << mostStocked->getQuantity() << " items)\n";
     }
 
     if (leastStocked) {
         cout << " Least Stocked:  " << leastStocked->getName()
-             << " (" << leastStocked->getQuantity() << " item)\n";
+             << " (" << leastStocked->getQuantity() << " items)\n";
     }
 
     cout << "==========================================\n\n";
-        // Display recent transactions
+    
+    // Display recent transactions
     cout << "\n--- Recent Transactions ---" << endl;
     if (receipts.empty()) {
         cout << "No transactions recorded yet." << endl;
@@ -781,12 +866,15 @@ void printStockReport() {
         int count = 0;
         for (auto it = receipts.rbegin(); it != receipts.rend() && count < 5; ++it, ++count) {
             time_t transactionTime = it->getTransactionTime();
-            tm ptm{};
-            if (localtime_s(&ptm, &transactionTime) == 0) {
+            char timeBuffer[100];
+            struct tm* ptm = localtime(&transactionTime);
+            
+            if (ptm != nullptr) {
+                strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", ptm);
                 cout << "Receipt ID: " << it->getReceiptId()
                           << ", User: " << it->getUsername()
                           << ", Total: $" << fixed << setprecision(2) << it->getTotalPrice()
-                          << ", Time: " << put_time(&ptm, "%Y-%m-%d %H:%M:%S") << endl;
+                          << ", Time: " << timeBuffer << endl;
             } else {
                 cout << "Receipt ID: " << it->getReceiptId()
                           << ", User: " << it->getUsername()
@@ -806,6 +894,7 @@ void printStockReport() {
         }
     }
 }
+
 // Function to checkout the cart
 void checkoutCart(const string& username) {
     cout << "\n--- Checking out Cart ---\n";
@@ -873,7 +962,3 @@ void checkoutCart(const string& username) {
         cart.clear();
     }
 }
-
-
-
-
