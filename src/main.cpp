@@ -31,6 +31,7 @@ void deleteStock();
 void displayAllStocks();
 void trackInventory();
 void generateLowStockAlerts();
+void printStockReport();
 
 // for User
 void addItemToCart();
@@ -45,15 +46,37 @@ vector<pair<Stock, int>> cart; // Global cart to hold items added by users
 
 // ─── Main Function ──────────────────────────────────────────────
 int main() {
-    cout << "\033[1;31m" << "______   _______  _______  _______  _______  _______  _______  _       " << endl;
-    cout << "\033[1;32m" << "(  __  \\ (  ___  )(  ____ )(  ___  )(  ____ \\(       )(  ___  )( (    /|" << endl;
-    cout << "\033[1;33m" << "| (  \\  )| (   ) || (    )|| (   ) || (    \\/| () () || (   ) ||  \\  ( |" << endl;
-    cout << "\033[1;34m" << "| |   ) || |   | || (____)|| (___) || (__    | || || || |   | ||   \\ | |" << endl;
-    cout << "\033[1;35m" << "| |   | || |   | ||     __)|  ___  ||  __)   | |(_)| || |   | || (\\ \\) |" << endl;
-    cout << "\033[1;36m" << "| |   ) || |   | || (\\ (   | (   ) || (      | |   | || |   | || | \\   |" << endl;
-    cout << "\033[1;37m" << "| (__/  )| (___) || ) \\ \\__| )   ( || (____/\\| )   ( || (___) || )  \\  |" << endl;
-    cout << "\033[1;31m" << "(______/ (_______)|/   \\__/|/     \\|(_______/|/     \\|(_______)|/    )_)" << endl;
-    cout << "\033[0m";
+   string lightBlue = "\033[94m";
+    string cyan = "\033[36m";
+    string reset = "\033[0m";
+
+    // Top section (light blue)
+    cout << lightBlue;
+    cout << R"(
+ _    _      _                            _____      ______                                           
+| |  | |    | |                          |_   _|     |  _  \                                          
+| |  | | ___| | ___ ___  _ __ ___   ___    | | ___   | | | |___  _ __ __ _  ___ _ __ ___   ___  _ __  
+| |/\| |/ _ \ |/ __/ _ \| '_ ` _ \ / _ \   | |/ _ \  | | | / _ \| '__/ _` |/ _ \ '_ ` _ \ / _ \| '_ \ 
+\  /\  /  __/ | (_| (_) | | | | | |  __/   | | (_) | | |/ / (_) | | | (_| |  __/ | | | | | (_) | | | |
+ \/  \/ \___|_|\___\___/|_| |_| |_|\___|   \_/\___/  |___/ \___/|_|  \__,_|\___|_| |_| |_|\___/|_| |_|
+                                                                                                      
+                                                                                                      
+)";
+
+    // Bottom section (cyan)
+    cout << cyan;
+    cout << R"(          
+           _             _     ___  ___                                                  _            
+          | |           | |    |  \/  |                                                 | |           
+       ___| |_ ___   ___| | __ | .  . | __ _ _ __   __ _  __ _  ___ _ __ ___   ___ _ __ | |_          
+      / __| __/ _ \ / __| |/ / | |\/| |/ _` | '_ \ / _` |/ _` |/ _ \ '_ ` _ \ / _ \ '_ \| __|         
+      \__ \ || (_) | (__|   <  | |  | | (_| | | | | (_| | (_| |  __/ | | | | |  __/ | | | |_          
+      |___/\__\___/ \___|_|\_\ \_|  |_/\__,_|_| |_|\__,_|\__, |\___|_| |_| |_|\___|_| |_|\__|         
+                                                          __/ |                                       
+                                                         |___/                                        
+)";
+
+    cout << reset;
 
 
     try {
@@ -85,19 +108,23 @@ int main() {
 void displayMainMenu() {
     int choice;
     do {
-        cout << "\n--- Stock Management System Main Menu ---" << endl;
-        cout << "[1] Admin" << endl;
-        cout << "[2] User" << endl;
-        cout << "[3] Exit" << endl;
-        cout << "Enter your choice: ";
+    cout << "\033[94m-------Select the role for your Requirement-------" << endl;
+    cout << "\033[94m[1] Admin\033[0m" << endl;
+    cout << "\033[94m[2] User\033[0m" << endl;
+    cout << "\033[94m[3] Exit\033[0m" << endl;
+    cout << "\033[94mEnter your choice: ";
         cin >> choice;
         switch (choice) {
-            case 1:
+            case 1:{
+                system("cls");
                 adminLogin();
                 break;
-            case 2:
+            }
+            case 2:{
+                system("cls");
                 userLogin(); // just add add to allow user login or registration
                 break;
+            }
             case 3:
                 cout << "Exiting program. Goodbye!" << endl;
                 break;
@@ -109,7 +136,10 @@ void displayMainMenu() {
 // ─── Admin Login ────────────────────────────────────────────────
 void adminLogin() {
     string username, password;
-    cout << "\n--- Admin Login ---\n";
+    cout << "+--------------------+\n";
+    cout << "|    Admin Login     |\n";
+    cout << "+--------------------+\n";
+
     cout << "Username: ";
     cin >> username;
     cout << "Password: ";
@@ -128,8 +158,11 @@ void adminLogin() {
 // ─── Admin Dashboard ────────────────────────────────────────────
 void adminDashboard() {
     int choice;
+    system("cls");
     do {
-        cout << "\n--- Admin Dashboard ---\n";
+        cout << "+--------------------+\n";
+        cout << "|   Admin Dashboard  |\n";
+        cout << "+--------------------+\n";
         cout << "[1] Add Stock\n";
         cout << "[2] Update Stock\n";
         cout << "[3] Delete Stock\n";
@@ -143,33 +176,51 @@ void adminDashboard() {
         cin >> choice;
 
         switch(choice) {
-            case 1:
+            case 1:{
+                system("cls");
                 addStock();
                 break;
-            case 2:
+            }
+            case 2:{
+                system("cls");
                 updateStock();
                 break;
-            case 3:
+            }
+            case 3:{
+                system("cls");
                 deleteStock();
                 break;
-            case 4:
+            }
+            case 4:{
+                system("cls");
                 searchStock();
                 break;
-            case 5:
+            }
+            case 5:{
+                system("cls");
                 displayAllStocks();
                 break;
-            case 6:
+            }
+            case 6:{
+                system("cls");
                 trackInventory();
                 break;
-            case 7:
-                  generateLowStockAlerts(); 
+            }
+            case 7:{
+                system("cls");
+                generateLowStockAlerts(); 
                 break;
-            case 8:
-                cout << "Print Reports feature not yet implemented." << endl;
+            }
+            case 8:{
+                system("cls");
+                printStockReport();
                 break;  
-            case 9:
+            }
+            case 9:{
+                system("cls");
                 cout << "Logging out..." << endl;
                 break;
+            }
             default:
                 cout << "Feature not yet implemented." << endl;
                 break;
@@ -183,7 +234,9 @@ void addStock() {
     int quantity;
     double price;
 
-    cout << "\n--- Add new Stock ---\n";
+    cout << "+--------------------+\n";
+    cout << "|    Add new Stock   |\n";
+    cout << "+--------------------+\n";
     cout << "Enter stock name: ";
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     getline(cin, name);
@@ -202,7 +255,9 @@ void addStock() {
 void updateStock() {
     int id;
     int choice;
-    cout << "\n--- Update Stock ---" << endl;
+    cout << "+--------------------+\n";
+    cout << "|    Update Stock    |" << endl;
+    cout << "+--------------------+\n";
     cout << "Enter stock ID to update: ";
     cin >> id;
 
@@ -255,7 +310,9 @@ void updateStock() {
 // ─── Delete Stock ───────────────────────────────────────────────
 void deleteStock() {
     int id;
-    cout << "\n--- Delete Stock ---\n";
+    cout << "+--------------------+\n";
+    cout << "|    Delete Stock    |\n";
+    cout << "+--------------------+\n";
     cout << "Enter stock ID: ";
     cin >> id;
 
@@ -274,7 +331,9 @@ void deleteStock() {
 
 // ─── Search Stock ───────────────────────────────────────────────
 void searchStock() {
-    cout << "\n--- Search Stock by ID ---\n";
+    cout << "+--------------------------+\n";
+    cout << "|    Search Stock by ID    |\n";
+    cout << "+--------------------------+\n";
     
     int id;
     cout << "Enter ID: ";
@@ -304,7 +363,9 @@ void displayAllStocks() {
     DisplayUtil::displayStocks(stocks);
 }
 void trackInventory() {
-    cout << "\n--- Inventory Tracking Summary ---" << endl;
+    cout << "+----------------------------------+\n";
+    cout << "|    Inventory Tracking Summary    |" << endl;
+    cout << "+----------------------------------+\n";
 
     if (stocks.empty()) {
         cout << "No stock items to track. Inventory is empty." << endl;
@@ -354,7 +415,9 @@ void trackInventory() {
 
 //Function Generate Low Stock Alerts
 void generateLowStockAlerts() {
-    cout << "\n----- Low Stock Alerts-----" << endl;
+    cout << "+----------------------------+\n";
+    cout << "|       Low Stock Alerts     |" << endl;
+    cout << "+----------------------------+\n";
     vector<Stock> LowStockItems;
     
     for (const auto& stock : stocks){
@@ -368,9 +431,9 @@ void generateLowStockAlerts() {
         cout << "The following items are low:" << endl;
         for (const auto& item : LowStockItems){
             cout << "ID: " << item.getId()
-                 << "Name:" << item.getName()
-                 << "Quantity:" << item.getQuantity()
-                 << "Price:" << item.getPrice() << endl;
+                 << " | Name:" << item.getName()
+                 << " | Quantity:" << item.getQuantity()
+                 << " | Price:" << item.getPrice() << endl;
         }
     }
 }
@@ -379,7 +442,9 @@ void generateLowStockAlerts() {
 // Function to register a new user
 void userRegister() { // just add add for allowing new user registration
     string username, password;
-    cout << "\n--- User Registration ---" << endl;
+    cout << "+----------------------------+\n";
+    cout << "|     User Registration      |" << endl;
+    cout << "+----------------------------+\n";
     cout << "Enter new username: ";
     getline(cin, username);
     cout << "Enter new password: ";
@@ -405,9 +470,11 @@ void userRegister() { // just add add for allowing new user registration
 // Function for user login and registration menu
 void userLogin() { // just add add to enable user to login or register
     int choice;
-    cout << "\n--- User Menu ---" << endl;
-    cout << "[1] Login" << endl;
-    cout << "[2] Register" << endl;
+    cout << "+----------------------+\n";
+    cout << "|       User Menu      |" << endl;
+    cout << "+----------------------+\n";
+    cout << "[1] Register" << endl;
+    cout << "[2] login" << endl;
     cout << "[3] Back to Main Menu" << endl;
     cout << "Enter your choice: ";
     cin >> choice;
@@ -416,8 +483,16 @@ void userLogin() { // just add add to enable user to login or register
 
     switch (choice) {
         case 1: {
+            system("cls");
+            userRegister();
+            break;
+        }
+        case 2:{
+            system("cls");
             string username, password;
-            cout << "\n--- User Login ---" << endl;
+            cout << "+----------------------+\n";
+            cout << "|       User Login     |" << endl;
+            cout << "+----------------------+\n";
             cout << "Username: ";
             getline(cin, username);
             cout << "Password: ";
@@ -438,12 +513,11 @@ void userLogin() { // just add add to enable user to login or register
             }
             break;
         }
-        case 2:
-            userRegister();
-            break;
-        case 3:
+        case 3:{
+            system("cls");
             cout << "Returning to main menu..." << endl;
             break;
+        }
         default:
             cout << "Invalid choice. Please try again." << endl;
             break;
@@ -453,9 +527,12 @@ void userLogin() { // just add add to enable user to login or register
 // Staff dashboard for regular users
 void staffDashboard() { // just add add for allowing staff actions
     int choice;
+    system("cls");
     do {
-        cout << "\n--- Staff Dashboard ---" << endl;
-        cout << "Welcome, Staff Member!" << endl;
+        cout << "+--------------------------+\n";
+        cout << "|      User Dashboard     |" << endl;
+        cout << "+--------------------------+\n";
+        cout << "  Welcome, To Our shop pls enjoy buying what you want !!" << endl;
         cout << "[1] Display All Stocks" << endl;
         cout << "[2] Search Stock" << endl;
         cout << "[3] Buy Stock" << endl;
@@ -468,24 +545,36 @@ void staffDashboard() { // just add add for allowing staff actions
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         switch(choice) {
-            case 1:
+            case 1:{
+                system("cls");
                 displayAllStocks();
                 break;
-            case 2:
+            }
+            case 2:{
+                system("cls");
                 searchStock();
                 break;
-            case 3:
+            }
+            case 3:{
+                system("cls");
                 buyStock(); // just add add to allow purchasing items
                 break;
-            case 4:
+            }
+            case 4:{
+                system("cls");
                 addItemToCart(); // Call the new function
                 break;
-            case 5:
+            }
+            case 5:{
+                system("cls");
                 viewCart(); // Call the new function
                 break;
-            case 6:
+            }
+            case 6:{
+                system("cls");
                 cout << "Logging out..." << endl;
                 break;
+            }
             default:
                 cout << "Invalid choice. Please try again." << endl;
                 break;
@@ -496,7 +585,9 @@ void staffDashboard() { // just add add for allowing staff actions
 // Buy Stock Function (for staff)
 void buyStock() {
     int id, quantity;
-    cout << "\n--- Buy Stock ---" << endl;
+    cout << "+-----------------------+\n";
+    cout << "|        Buy Stock      |" << endl;
+    cout << "+-----------------------+\n";
     cout << "Enter stock ID to purchase: ";
     cin >> id;
     cout << "Enter quantity: ";
@@ -540,7 +631,9 @@ void buyStock() {
 // Function to add an item to the global cart
 void addItemToCart() {
     int id, qty;
-    cout << "\n--- Add to Cart ---\n"; 
+    cout << "+-----------------------+\n";
+    cout << "|       Add to Cart     |\n"; 
+    cout << "+-----------------------+\n";
     displayAllStocks(); // Show available stocks
     cout << "Enter Stock ID: "; 
     cin >> id;
@@ -577,7 +670,9 @@ void addItemToCart() {
 
 // Function to view the contents of the global cart
 void viewCart() {
-    cout << "\n--- Your Cart ---\n";
+    cout << "+-----------------------+\n";
+    cout << "|        Your Cart      |\n";
+    cout << "+-----------------------+\n";
     if (cart.empty()){ 
         cout << "Cart is empty.\n"; 
         return; 

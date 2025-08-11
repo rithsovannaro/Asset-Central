@@ -1,11 +1,17 @@
 #include "../include/DisplayUtil.hpp"
 #include <tabulate/table.hpp>
+using namespace std;
 
 // Implementation of the DisplayUtil class
 void DisplayUtil::displayWelcome() {
-    std::cout << "+----------------------------------------+" << std::endl;
-    std::cout << "| \033[1;31mWelcome to the Stock Management System\033[0m |" << std::endl;
-    std::cout << "+----------------------------------------+" << std::endl;
+    //  string brown = "\033[38;2;165;42;42m"; // RGB Brown
+    // string violet = "\033[95m";            // Bright violet (magenta)
+    // string reset = "\033[0m";
+         cout << "\033[38;2;165;42;42m+----------------------------------------+\n";
+    cout << "\033[38;2;165;42;42m| " << "\033[95m       Stock Management system      "  << "\033[38;2;165;42;42m   |\n";
+    cout << "\033[38;2;165;42;42m+----------------------------------------+\n";
+    cout << "\033[0m"; // Reset color
+
 }
 
 void DisplayUtil::displayUsers(const std::vector<User>& users) {
@@ -38,6 +44,7 @@ void DisplayUtil::displayUsers(const std::vector<User>& users) {
 }
 
 void DisplayUtil::displayStocks(const std::vector<Stock>& stocks) {
+
     if (stocks.empty()) {
         std::cout << "No stock items found." << std::endl;
         return;
@@ -63,6 +70,9 @@ void DisplayUtil::displayStocks(const std::vector<Stock>& stocks) {
                             .background_color(tabulate::Color::magenta);
 
     // Print the table to the console
-    std::cout << "\n--- All Stocks ---" << std::endl;
+    std::cout << "                        " << std::endl;
+    std::cout << "+--------------------+\n";
+    std::cout << "|      All Stocks    |" << std::endl;
+    std::cout << "+--------------------+\n";
     std::cout << stocks_table << std::endl;
 }
