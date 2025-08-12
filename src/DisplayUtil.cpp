@@ -2,18 +2,6 @@
 #include <tabulate/table.hpp>
 using namespace std;
 
-// Implementation of the DisplayUtil class
-void DisplayUtil::displayWelcome() {
-    //  string brown = "\033[38;2;165;42;42m"; // RGB Brown
-    // string violet = "\033[95m";            // Bright violet (magenta)
-    // string reset = "\033[0m";
-         cout << "\033[38;2;165;42;42m+----------------------------------------+\n";
-    cout << "\033[38;2;165;42;42m| " << "\033[95m       Stock Management system      "  << "\033[38;2;165;42;42m   |\n";
-    cout << "\033[38;2;165;42;42m+----------------------------------------+\n";
-    cout << "\033[0m"; // Reset color
-
-}
-
 void DisplayUtil::displayUsers(const std::vector<User>& users) {
     if (users.empty()) {
         std::cout << "No user accounts found." << std::endl;
@@ -39,7 +27,7 @@ void DisplayUtil::displayUsers(const std::vector<User>& users) {
                            .background_color(tabulate::Color::cyan);
 
     // Print the table to the console
-    std::cout << "\n--- User Accounts ---" << std::endl;
+    std::cout << "                                                           ------------- User Accounts -------------" << std::endl;
     std::cout << users_table << std::endl;
 }
 
@@ -52,7 +40,7 @@ void DisplayUtil::displayStocks(const std::vector<Stock>& stocks) {
 
     // Create a table with headers
     tabulate::Table stocks_table;
-    stocks_table.add_row({"ID", "Name", "Quantity", "Price"});
+    stocks_table.add_row({"ID", "\t\tName", "\t\tQuantity", "\t\tPrice"});
 
     // Add stock data to the table
     for (const auto& stock : stocks) {
@@ -70,9 +58,9 @@ void DisplayUtil::displayStocks(const std::vector<Stock>& stocks) {
                             .background_color(tabulate::Color::magenta);
 
     // Print the table to the console
-    std::cout << "                        " << std::endl;
+
     std::cout << "+--------------------+\n";
     std::cout << "|      All Stocks    |" << std::endl;
     std::cout << "+--------------------+\n";
-    std::cout << stocks_table << std::endl;
+    std::cout << stocks_table << endl;
 }

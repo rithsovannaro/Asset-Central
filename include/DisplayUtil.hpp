@@ -12,7 +12,7 @@
 class DisplayUtil {
 public:
     // Display a welcome message
-    static void displayWelcome();
+    // static void displayWelcome();
     
     // Display a list of users in a table
     static void displayUsers(const std::vector<User>& users);
