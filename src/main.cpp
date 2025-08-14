@@ -13,9 +13,22 @@
 #include "../include/ExcelUtil.hpp"
 #include "../include/DisplayUtil.hpp"
 #include "../include/Receipt.hpp"
+#include <windows.h>
+#include <conio.h>   
 
 using namespace std;
 const int LOW_STOCK_THRESHOLD = 20; 
+
+
+// Platform-specific includes for password masking
+#ifdef _WIN32
+    #include <conio.h>
+    #include <windows.h>
+#else
+    #include <termios.h>
+    #include <unistd.h>
+    #include <sys/types.h>
+#endif
 
 // ─── Function Prototypes ────────────────────────────────────────
 void displayMainMenu();
@@ -32,6 +45,7 @@ void displayAllStocks();
 void trackInventory();
 void generateLowStockAlerts();
 void printStockReport();
+string getPasswordInput(const string& prompt);
 
 // for User
 void addItemToCart();
@@ -46,8 +60,92 @@ vector<Receipt> receipts;  // Store all receipts
 vector<pair<Stock, int>> cart; // Global cart to hold items added by users
 User* currentUser = nullptr;
 
+string getPasswordInput(const string& prompt) {
+    string password;
+    cout << prompt;
+    cout.flush(); // Ensure prompt is displayed immediately
+
+#ifdef _WIN32
+    // Windows implementation
+    char ch;
+    while (true) {
+        ch = _getch();
+
+        if (ch == '\r') { // Enter key
+            break;
+        } else if (ch == '\b') { // Backspace
+            if (!password.empty()) {
+                password.pop_back();
+                cout << "\b \b"; // Erase the asterisk
+                cout.flush();
+            }
+        } else if (ch >= 32 && ch <= 126) { // Printable characters
+            password += ch;
+            cout << '*';
+            cout.flush();
+        }
+        // Ignore other special characters
+    }
+#else
+    // Unix/Linux implementation
+    struct termios oldTermios, newTermios;
+
+    // Get current terminal attributes
+    if (tcgetattr(STDIN_FILENO, &oldTermios) != 0) {
+        // Fallback
+        cout << "\nWarning: Cannot hide password input on this terminal." << endl;
+        cout << "Password: ";
+        getline(cin, password);
+        return password;
+    }
+
+    // Disable echo & canonical mode
+    newTermios = oldTermios;
+    newTermios.c_lflag &= ~(ECHO | ICANON);
+    newTermios.c_cc[VMIN] = 1;
+    newTermios.c_cc[VTIME] = 0;
+
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newTermios) != 0) {
+        cout << "\nWarning: Cannot hide password input on this terminal." << endl;
+        cout << "Password: ";
+        getline(cin, password);
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldTermios);
+        return password;
+    }
+
+    char ch;
+    while (true) {
+        if (read(STDIN_FILENO, &ch, 1) != 1) {
+            break;
+        }
+
+        if (ch == '\n' || ch == '\r') {
+            break;
+        } else if (ch == 127 || ch == 8) {
+            if (!password.empty()) {
+                password.pop_back();
+                cout << "\b \b";
+                cout.flush();
+            }
+        } else if (ch >= 32 && ch <= 126) {
+            password += ch;
+            cout << '*';
+            cout.flush();
+        }
+    }
+
+    // Restore terminal
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldTermios);
+#endif
+
+    cout << endl;
+    return password;
+}
+
+
 // ─── Main Function ──────────────────────────────────────────────
 int main() {
+    system("cls");
    string lightBlue = "\033[94m";
     string cyan = "\033[36m";
     string reset = "\033[0m";
@@ -55,12 +153,12 @@ int main() {
     // Top section (light blue)
     cout << lightBlue;
     cout << R"(
- _    _      _                            _____      ______                                           
-| |  | |    | |                          |_   _|     |  _  \                                          
-| |  | | ___| | ___ ___  _ __ ___   ___    | | ___   | | | |___  _ __ __ _  ___ _ __ ___   ___  _ __  
-| |/\| |/ _ \ |/ __/ _ \| '_ ` _ \ / _ \   | |/ _ \  | | | / _ \| '__/ _` |/ _ \ '_ ` _ \ / _ \| '_ \ 
-\  /\  /  __/ | (_| (_) | | | | | |  __/   | | (_) | | |/ / (_) | | | (_| |  __/ | | | | | (_) | | | |
- \/  \/ \___|_|\___\___/|_| |_| |_|\___|   \_/\___/  |___/ \___/|_|  \__,_|\___|_| |_| |_|\___/|_| |_|
+                                        _    _      _                            _____      ______                                           
+                                       | |  | |    | |                          |_   _|     |  _  \                                          
+                                       | |  | | ___| | ___ ___  _ __ ___   ___    | | ___   | | | |___  _ __ __ _  ___ _ __ ___   ___  _ __  
+                                       | |/\| |/ _ \ |/ __/ _ \| '_ ` _ \ / _ \   | |/ _ \  | | | / _ \| '__/ _` |/ _ \ '_ ` _ \ / _ \| '_ \ 
+                                       \  /\  /  __/ | (_| (_) | | | | | |  __/   | | (_) | | |/ / (_) | | | (_| |  __/ | | | | | (_) | | | |
+                                        \/  \/ \___|_|\___\___/|_| |_| |_|\___|   \_/\___/  |___/ \___/|_|  \__,_|\___|_| |_| |_|\___/|_| |_|
                                                                                                       
                                                                                                       
 )";
@@ -68,21 +166,21 @@ int main() {
     // Bottom section (cyan)
     cout << cyan;
     cout << R"(          
-           _             _     ___  ___                                                  _            
-          | |           | |    |  \/  |                                                 | |           
-       ___| |_ ___   ___| | __ | .  . | __ _ _ __   __ _  __ _  ___ _ __ ___   ___ _ __ | |_          
-      / __| __/ _ \ / __| |/ / | |\/| |/ _` | '_ \ / _` |/ _` |/ _ \ '_ ` _ \ / _ \ '_ \| __|         
-      \__ \ || (_) | (__|   <  | |  | | (_| | | | | (_| | (_| |  __/ | | | | |  __/ | | | |_          
-      |___/\__\___/ \___|_|\_\ \_|  |_/\__,_|_| |_|\__,_|\__, |\___|_| |_| |_|\___|_| |_|\__|         
-                                                          __/ |                                       
-                                                         |___/                                        
+                                                  _             _     ___  ___                                                  _            
+                                                 | |           | |    |  \/  |                                                 | |           
+                                              ___| |_ ___   ___| | __ | .  . | __ _ _ __   __ _  __ _  ___ _ __ ___   ___ _ __ | |_          
+                                             / __| __/ _ \ / __| |/ / | |\/| |/ _` | '_ \ / _` |/ _` |/ _ \ '_ ` _ \ / _ \ '_ \| __|         
+                                             \__ \ || (_) | (__|   <  | |  | | (_| | | | | (_| | (_| |  __/ | | | | |  __/ | | | |_          
+                                             |___/\__\___/ \___|_|\_\ \_|  |_/\__,_|_| |_|\__,_|\__, |\___|_| |_| |_|\___|_| |_|\__|         
+                                                                                                 __/ |                                       
+                                                                                                |___/                                        
 )";
 
     cout << reset;
 
 
     try {
-        DisplayUtil::displayWelcome();
+        // DisplayUtil::displayWelcome();
 
         users = ExcelUtil::readUsersFromFile("data/users.xlsx");
         if (users.empty()) {
@@ -114,73 +212,157 @@ int main() {
 void displayMainMenu() {
     int choice;
     do {
-    cout << "\033[94m-------Select the role for your Requirement-------" << endl;
-    cout << "\033[94m[1] Admin\033[0m" << endl;
-    cout << "\033[94m[2] User\033[0m" << endl;
-    cout << "\033[94m[3] Exit\033[0m" << endl;
-    cout << "\033[94mEnter your choice: ";
-        cin >> choice;
+    cout << "            \033[94m                                                -------Select the role for your Requirement-------" << endl;
+    cout << "                         \033[94m                                          [1] Admin\033[0m" << endl;
+    cout << "                         \033[94m                                          [2] User\033[0m" << endl;
+    cout << "                         \033[94m                                          [3] Exit\033[0m" << endl;
+    cout << "                         \033[94m                                          Enter your choice: ";
+        if (!(cin >> choice)) {  
+            cin.clear(); // clear fail state
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard bad input
+            cout << "\033[31mInvalid input! Please enter a number between 1 and 3.\033[0m\n\n";
+            continue; // skip to next loop iteration
+        }
+
         switch (choice) {
             case 1:{
-                system("cls");
+                // system("cls");
                 adminLogin();
                 break;
             }
             case 2:{
-                system("cls");
+                // system("cls");
                 userLogin(); // just add add to allow user login or registration
                 break;
             }
             case 3:
-                cout << "Exiting program. Goodbye!" << endl;
+                cout << "\033[31mExiting program. Goodbye!\033[0m" << endl;
                 break;
             default:
-                cout << "Invalid choice. Please try again." << endl;
+                cout << "\033[31mInvalid input! Please enter a number between 1 and 3.\033[0m\n\n";
         }
     } while (choice != 3);
 }
+
+//add color laoding
+
+void SetColor(int color) {
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetConsoleTextAttribute(hConsole, color);
+}
+
+void loadingAnimation() {
+     const int barWidth = 30;
+
+    std::cout << "                                                                      Loading: [";
+
+    // Print empty bar initially
+    for (int i = 0; i < barWidth; ++i) std::cout << " ";
+    std::cout << "\r                                                                    Loading: ";
+
+    for (int i = 0; i <= barWidth; ++i) {
+        // Change color depending on progress
+        if (i < barWidth / 3)
+            SetColor(7);      // Green
+        else if (i < 2 * barWidth / 3)
+            SetColor(14);      // Yellow
+        else
+            SetColor(10);    
+
+        // Print the progress bar block
+        for (int j = 0; j < i; ++j) std::cout << "\xDB";  // ▓ character (full block)
+
+        // Reset color for the rest of the bar
+        SetColor(7);
+
+        // Print spaces for the rest of the bar
+        for (int j = i; j < barWidth; ++j) std::cout << " ";
+
+        std::cout << "\r                                                                Loading: ";
+        std::cout.flush();
+
+        Sleep(100);
+    }
+
+    // Reset color and clear the line
+    SetColor(7);
+    std::cout << std::string(50, ' ') << "\r";  // Clear current line
+
+    // Print only Done!
+    std::cout << "                                                                      login successfull !" << std::endl;
+}
+
 // ─── Admin Login ────────────────────────────────────────────────
 void adminLogin() {
+    system("cls");
     string username, password;
-    cout << "+--------------------+\n";
-    cout << "|    Admin Login     |\n";
-    cout << "+--------------------+\n";
+   cout << "\033[36m";
+    cout << "                                                             ___      _           _          _                 _       \n";
+    cout << "                                                            / _ \\    | |         (_)        | |               (_)      \n";
+    cout << "                                                           / /_\\ \\ __| |_ __ ___  _ _ __    | |     ___   __ _ _ _ __  \n";
+    cout << "                                                           |  _  |/ _` | '_ ` _ \\| | '_ \\   | |    / _ \\ / _` | | '_ \\ \n";
+    cout << "                                                           | | | | (_| | | | | | | | | | |  | |___| (_) | (_| | | | | |\n";
+    cout << "                                                           \\_| |_/\\__,_|_| |_| |_|_|_| |_|  \\_____/\\___/ \\__, |_|_| |_|\n";
+    cout << "                                                                                                            __/ |        \n";
+    cout << "                                                                                                           |____/         \n";
+    cout << "\033[0m"; 
 
-    cout << "Username: ";
+    SetColor(9);
+
+   
+    cout << "                                                                           Username: ";
     cin >> username;
-    cout << "Password: ";
-    cin >> password;
+    password = getPasswordInput("                                                                           Password: ");
+    // cout << "                                                                           Password: ";
+    // cin >> password;
 
-    for (const auto& user : users) {
+   for (const auto& user : users) {
         if (user.getUsername() == username && user.getPassword() == password && user.isAdmin()) {
-            cout << "Admin login successful!\n";
+            loadingAnimation();  // Show loading animation after successful login
             adminDashboard();
             return;
         }
     }
-    cout << "Invalid credentials or not an admin.\n";
+    cout << "\033[31mInvalid credentials or not an admin.\033[0m\n";
 }
 
 // ─── Admin Dashboard ────────────────────────────────────────────
 void adminDashboard() {
-    int choice;
     system("cls");
+    int choice;
     do {
-        cout << "+--------------------+\n";
-        cout << "|   Admin Dashboard  |\n";
-        cout << "+--------------------+\n";
-        cout << "[1] Add Stock\n";
-        cout << "[2] Update Stock\n";
-        cout << "[3] Delete Stock\n";
-        cout << "[4] Search Stock\n";
-        cout << "[5] Display All Stocks\n";
-        cout << "[6] Track Inventory\n";
-        cout << "[7] Generate Low-Stock Alerts\n";
-        cout << "[8] Print Reports\n";
-        cout << "[9] Logout\n";
-        cout << "Enter your choice: ";
-        cin >> choice;
+        
+        cout << "\033[34m"; // Light blue (cyan)
+        cout << "                                                 ___      _           _        ______          _     _                         _  \n";
+        cout << "                                                / _ \\    | |         (_)       |  _  \\        | |   | |                       | | \n";
+        cout << "                                               / /_\\ \\ __| |_ __ ___  _ _ __   | | | |__ _ ___| |__ | |__   ___   __ _ _ __ __| | \n";
+        cout << "                                               |  _  |/ _` | '_ ` _ \\| | '_ \\  | | | / _` / __| '_ \\| '_ \\ / _ \\ / _` | '__/ _` | \n";
+        cout << "                                               | | | | (_| | | | | | | | | | | | |/ / (_| \\__ \\ | | | |_) | (_) | (_| | | | (_| | \n";
+        cout << "                                               \\_| |_/\\__,_|_| |_| |_|_|_| |_| |___/ \\__,_|___/_| |_|_.__/ \\___/ \\__,_|_|  \\__,_| \n";
+        cout << "                                                                                                                                  \n";
+        cout << "                                                                                                                                      \n";
+        cout << "\033[0m"; // Reset to default
 
+        SetColor(9);
+        cout << " " << endl;
+        cout << "                                                                       [1] Add Stock\n";
+        cout << "                                                                       [2] Update Stock\n";
+        cout << "                                                                       [3] Delete Stock\n";
+        cout << "                                                                       [4] Search Stock\n";
+        cout << "                                                                       [5] Display All Stocks\n";
+        cout << "                                                                       [6] Track Inventory\n";
+        cout << "                                                                       [7] Generate Low-Stock Alerts\n";
+        cout << "                                                                       [8] Print Reports\n";
+        cout << "                                                                       [9] Logout\n";
+        cout << "                                                                           Enter your choice: ";
+        if (!(cin >> choice)) {  
+            system("cls");
+            cin.clear(); // clear fail state
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard bad input
+            cout << "\033[31mInvalid input! Please enter a number between 1 and 9.\n\n\033[0m" << endl;
+            return adminDashboard(); // skip to next loop iteration
+        }
+        SetColor(9);
         switch(choice) {
             case 1:{
                 system("cls");
@@ -229,7 +411,8 @@ void adminDashboard() {
                 break;
             }
             default:
-                cout << "Feature not yet implemented." << endl;
+            system("cls");
+                cout << "\033[31mInvalid input! Please enter a number between 1 and 9.\n\n\033[0m" << endl;
                 break;
         }
     } while (choice != 9);
@@ -237,35 +420,57 @@ void adminDashboard() {
 
 // ─── Add Stock ──────────────────────────────────────────────────
 void addStock() {
+    
     string name;
     int quantity;
     double price;
 
-    cout << "+--------------------+\n";
-    cout << "|    Add new Stock   |\n";
-    cout << "+--------------------+\n";
-    cout << "Enter stock name: ";
+    cout << "\033[34m"; // Blue
+    cout << "                                                   __    ____  ____     _  _  ____  _    _    ___  ____  _____  ___  _  _     \n";
+    cout << "                                                  /__\\  (  _ \\(  _ \\   ( \\( )( ___)( \\/\\/ )  / __)(_  _)(  _  )/ __)( )/ )    \n";
+    cout << "                                                 /(__)\\  )(_) ))(_) )   )  (  )__)  )    (   \\__ \\  )(   )_)(( (__  )  (     \n";
+    cout << "                                                (__)(__)(____/(____/   (_)_/)(____)(__\\/__)  (___/ (__) (_____)(___)(_)\_)    \n";
+    cout << "\033[0m"; // Reset
+
+    SetColor(9);
+    cout << "                                                                                                 "<< endl;
+    cout << "                                                                               Enter stock name: ";
+
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
     getline(cin, name);
-    cout << "Quantity: ";
-    cin >> quantity;
-    cout << "Price: ";
-    cin >> price;
+    cout << "                                                                           Quantity: ";
+    while (!(cin >> quantity) || quantity < 0) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "\033[31mInvalid input! Quantity must be a positive number: \033[0m";
+    }
+    cout << "                                                                           Price: ";
+    while (!(cin >> price) || price < 0) {
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "\033[31mInvalid input! Price must be a positive number: \033[0m";
+    }
 
     int newId = ExcelUtil::getNextStockId(stocks);
     stocks.emplace_back(newId, name, quantity, price);
     ExcelUtil::writeStockToFile("data/stock.xlsx", stocks);
-    cout << "Stock added! ID: " << newId << endl;
+    cout << "                                                                           Stock added! ID: " << newId << endl;
 }
 
 // ─── Update Stock ───────────────────────────────────────────────
 void updateStock() {
+   
     int id;
     int choice;
-    cout << "+--------------------+\n";
-    cout << "|    Update Stock    |" << endl;
-    cout << "+--------------------+\n";
-    cout << "Enter stock ID to update: ";
+    cout << "\033[34m"; // Blue
+    cout << "                                                   __  __  ____  ____    __   ____  ____    ___  ____  _____  ___  _  _ \n";
+    cout << "                                                  (  )(  )(  _ \\(  _ \\  /__\\ (_  _)( ___)  / __)(_  _)(  _  )/ __)( )/ )\n";
+    cout << "                                                   )(__)(  )___/ )(_) )/(__)\\  )(   )__)   \\__ \\  )(   )_)(( (__  )  ( \n";
+    cout << "                                                  (______)(__)  (____/(__)(__)(__) (____)  (___/ (__) (_____)(___)(_)\_)\n";
+    cout << "\033[0m"; // Reset
+    SetColor(9);
+
+    cout << " " << endl;
+    cout << "                                                                              Enter stock ID to update: ";
     cin >> id;
 
     // Find the stock item by ID
@@ -274,53 +479,71 @@ void updateStock() {
     });
 
     if (it != stocks.end()) {
-        cout << "Stock found: " << it->getName() << endl;
-        cout << "[1] Update Name" << endl;
-        cout << "[2] Update Quantity" << endl;
-        cout << "[3] Update Price" << endl;
-        cout << "Enter your choice: ";
-        cin >> choice;
+        cout << "                                                                          Stock found: " << it->getName() << endl;
+        cout << "                                                                          [1] Update Name" << endl;
+        cout << "                                                                          [2] Update Quantity" << endl;
+        cout << "                                                                          [3] Update Price" << endl;
+        cout << "                                                                              Enter your choice: ";
+        if (!(cin >> choice)) {  
+            cin.clear(); // clear fail state
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard bad input
+            cout << "\033[31mInvalid input! Please enter a number between 1 and 9.\033[0m\n\n";
+            return; 
+        }
 
         string newName;
         int newQuantity;
         double newPrice;
 
         switch (choice) {
-            case 1:
-                cout << "Enter new name: ";
+            case 1:{
+                system("cls");
+                cout << "                                                                  Enter new name: ";
                 cin.ignore(numeric_limits<streamsize>::max(), '\n');
                 getline(cin, newName);
                 it->setName(newName);
                 break;
-            case 2:
-                cout << "Enter new quantity: ";
+            }
+            case 2:{
+                system("cls");
+                cout << "                                                                  Enter new quantity: ";
                 cin >> newQuantity;
                 it->setQuantity(newQuantity);
                 break;
-            case 3:
-                cout << "Enter new price: ";
+            }
+            case 3:{
+                system("cls");
+                cout << "                                                                  Enter new price: ";
                 cin >> newPrice;
                 it->setPrice(newPrice);
                 break;
+            }
             default:
-                cout << "Invalid choice. No changes made." << endl;
+                cout << "\033[31mInvalid input! Please enter a number between 1 and 9.\033[0m\n\n";
                 return;
         }
 
         ExcelUtil::writeStockToFile("data/stock.xlsx", stocks);
         cout << "Stock updated successfully!" << endl;
     } else {
-        cout << "Stock with ID " << id << " not found." << endl;
+        cout << "Stock with ID " << id << "\033[31m not found.\033[0m" << endl;
     }
 }
 
 // ─── Delete Stock ───────────────────────────────────────────────
 void deleteStock() {
+   
     int id;
-    cout << "+--------------------+\n";
-    cout << "|    Delete Stock    |\n";
-    cout << "+--------------------+\n";
-    cout << "Enter stock ID: ";
+    cout << "\033[34m"; // Blue
+    cout << "                                                     ____  ____  __    ____  ____  ____    ___  ____  _____  ___  _  _   \n";
+    cout << "                                                    (  _ \\( ___)(  )  ( ___)(_  _)( ___)  / __)(_  _)(  _  )/ __)( )/ )  \n";
+    cout << "                                                     )(_) ))__)  )(__  )__)   )(   )__)   \\__ \\  )(   )_)(( (__  )  (   \n";
+    cout << "                                                    (____/(____)(____)(____) (__) (____)  (___/ (__) (_____)(___)(_)\_)  \n";
+    cout << "\033[0m"; // Reset
+
+    SetColor(9);
+    cout << "  " << endl;
+    cout << "                                                                               Enter stock ID: ";
     cin >> id;
 
     auto it = find_if(stocks.begin(), stocks.end(), [id](const Stock& s) {
@@ -330,52 +553,64 @@ void deleteStock() {
     if (it != stocks.end()) {
         stocks.erase(it);
         ExcelUtil::writeStockToFile("data/stock.xlsx", stocks);
-        cout << "Deleted stock with ID " << id << endl;
+        cout << "\033[31mDeleted stock with ID \033[0m" << id << endl;
     } else {
-        cout << " Stock not found.\n";
+        cout << "\033[31m Stock not found.\033[0m\n";
     }
 }
 
 // ─── Search Stock ───────────────────────────────────────────────
 void searchStock() {
-    cout << "+--------------------------+\n";
-    cout << "|    Search Stock by ID    |\n";
-    cout << "+--------------------------+\n";
     
+    cout << "\033[34m";  // 9 = Light Blue
+
+    cout << "                                     ___  ____    __    ____   ___  _   _    ___  ____  _____  ___  _  _    ____  _  _    ____  ____  \n";
+    cout << "                                    / __)( ___)  /__\\  (  _ \\ / __)( )_( )  / __)(_  _)(  _  )/ __)( )/ )  (  _ \\( \\/ )  (_  _)(  _ \\ \n";
+    cout << "                                    \\__ \\ )__)  /(__)\\  )   /( (__  ) _ (   \\__ \\  )(   )(_)(( (__  )  (    ) _ < \\  /    _)(_  )(_) )\n";
+    cout << "                                    (___/(____)(__)(__)(_) \_) \\___)(_) (_)  (___/ (__) (_____) \___)(_)\_)   (____/ (__)   (____)(____/ \n";
+
+    cout << "\033[0m"; 
+
+    SetColor(9);
     int id;
-    cout << "Enter ID: ";
+    cout << " " << endl;
+    cout << "                                                   Enter ID: ";
     cin >> id;
 
     bool found = false;
     for (const auto& s : stocks) {
         if (s.getId() == id) {
-            cout << "Stock Found:\n";
-            cout << "ID: " << s.getId()
-                 << " | Name: " << s.getName()
-                 << " | Qty: " << s.getQuantity()
-                 << " | Price: $" << s.getPrice() << endl;
+            cout << "                                                   Stock Found:\n";
+            cout << "          ID:  "<< s.getId()
+                 << "                    | Name:  " << s.getName()
+                 << "                    | Quantity:  " << s.getQuantity()
+                 << "                    | Price:"<< s.getPrice() << endl;
             found = true;
             break; // Since ID is unique, break early
         }
     }
 
     if (!found) {
-        cout << "No stock item found with ID: " << id << endl;
+        cout << "\033[31mNo stock item found with ID: " << id << "\033[0m" << endl;
     }
 }
 
 
 // ─── Display All Stocks ─────────────────────────────────────────
 void displayAllStocks() {
+    SetColor(9);
     DisplayUtil::displayStocks(stocks);
 }
 void trackInventory() {
-    cout << "+----------------------------------+\n";
-    cout << "|    Inventory Tracking Summary    |" << endl;
-    cout << "+----------------------------------+\n";
+    
+    cout << "\033[34m"; 
+    cout << "--------------------Tracking inventory--------------------";
+    cout << "\033[0m"; 
 
+    SetColor(9);
+    cout << " " << endl;
     if (stocks.empty()) {
-        cout << "No stock items to track. Inventory is empty." << endl;
+        cout << "\033[31mNo stock items to track. Inventory is empty.\033[0m\n" << endl;
         return;
     }
 
@@ -398,9 +633,9 @@ void trackInventory() {
 
     cout << "\n--- Low Stock Alerts (Quantity < " << LOW_STOCK_THRESHOLD << ") ---" << endl;
     if (lowStockItems.empty()) {
-        cout << "No items are currently low in stock. Good job!" << endl;
+        cout << "\033[31mNo items are currently low in stock. Good job!\033[0m" << endl;
     } else {
-        cout << "The following items are running low:" << endl;
+        cout << "\033[31mThe following items are running low: \033[0m" << endl;
         cout << "ID\tName\t\tQuantity\tPrice" << endl;
         cout << "-----------------------------------------------------" << endl;
         for (const auto& item : lowStockItems) {
@@ -422,9 +657,10 @@ void trackInventory() {
 
 //Function Generate Low Stock Alerts
 void generateLowStockAlerts() {
-    cout << "+----------------------------+\n";
-    cout << "|       Low Stock Alerts     |" << endl;
-    cout << "+----------------------------+\n";
+    SetColor(9);
+    cout << "                                                                           +----------------------------+\n";
+    cout << "                                                                           |       Low Stock Alerts     |" << endl;
+    cout << "                                                                           +----------------------------+\n";
     vector<Stock> LowStockItems;
     
     for (const auto& stock : stocks){
@@ -433,14 +669,14 @@ void generateLowStockAlerts() {
         }
     }
     if (LowStockItems.empty()){
-        cout << "No items are currently Low in stock." << endl;
+        cout << "\033[31mNo items are currently Low in stock.\033[0m" << endl;
     }else{
-        cout << "The following items are low:" << endl;
+        cout << "                                                                       The following items are low:" << endl;
         for (const auto& item : LowStockItems){
-            cout << "ID: " << item.getId()
-                 << " | Name:" << item.getName()
-                 << " | Quantity:" << item.getQuantity()
-                 << " | Price:" << item.getPrice() << endl;
+            cout << "             ID:  " << item.getId()
+                 << "                       | Name:  " << item.getName()
+                 << "                       | Quantity:  " << item.getQuantity()
+                 << "                       | Price:  " << item.getPrice() << endl;
         }
     }
 }
@@ -448,13 +684,14 @@ void generateLowStockAlerts() {
 
 // Function to register a new user
 void userRegister() { // just add add for allowing new user registration
+    SetColor(9);
     string username, password;
-    cout << "+----------------------------+\n";
-    cout << "|     User Registration      |" << endl;
-    cout << "+----------------------------+\n";
-    cout << "Enter new username: ";
+    cout << "                                                                   +----------------------------+\n";
+    cout << "                                                                   |     User Registration      |" << endl;
+    cout << "                                                                   +----------------------------+\n";
+    cout << "                                                                   Enter new username: ";
     getline(cin, username);
-    cout << "Enter new password: ";
+    cout << "                                                                   Enter new password: ";
     getline(cin, password);
 
     bool userExists = false;
@@ -466,7 +703,7 @@ void userRegister() { // just add add for allowing new user registration
     }
 
     if (userExists) {
-        cout << "Username already exists. Please choose a different one." << endl;
+        cout << "\033[31mUsername already exists. Please choose a different one.\033[0m" << endl;
     } else {
         users.emplace_back(username, password, false);
         ExcelUtil::writeUsersToFile("data/users.xlsx", users);
@@ -476,15 +713,22 @@ void userRegister() { // just add add for allowing new user registration
 
 // Function for user login and registration menu
 void userLogin() { // just add add to enable user to login or register
+    system("cls");
+    SetColor(9);
     int choice;
-    cout << "+----------------------+\n";
-    cout << "|       User Menu      |" << endl;
-    cout << "+----------------------+\n";
-    cout << "[1] Register" << endl;
-    cout << "[2] login" << endl;
-    cout << "[3] Back to Main Menu" << endl;
-    cout << "Enter your choice: ";
-    cin >> choice;
+    cout << "                                                                           +----------------------+\n";
+    cout << "                                                                           |       User Menu      |" << endl;
+    cout << "                                                                           +----------------------+\n";
+    cout << "                                                                           [1] Register" << endl;
+    cout << "                                                                           [2] login" << endl;
+    cout << "                                                                           [3] Back to Main Menu" << endl;
+    cout << "                                                                               Enter your choice: ";
+    if (!(cin >> choice)) {  
+        cin.clear(); // clear fail state
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard bad input
+        cout << "Invalid input! Please enter a number between 1 and 3.\n\n";
+        return; 
+    }
 
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
@@ -497,37 +741,40 @@ void userLogin() { // just add add to enable user to login or register
         case 2:{
             system("cls");
             string username, password;
-            cout << "+----------------------+\n";
-            cout << "|       User Login     |" << endl;
-            cout << "+----------------------+\n";
-            cout << "Username: ";
+            cout << "                                                                   +----------------------+\n";
+            cout << "                                                                   |       User Login     |" << endl;
+            cout << "                                                                   +----------------------+\n";
+            cout << "                                                                   Username: ";
             getline(cin, username);
-            cout << "Password: ";
-            getline(cin, password);
+            password = getPasswordInput("                                                                   Password: ");
+            // getline(cin, password); 
 
             bool loginSuccess = false;
-            for (auto& user : users) { // new correct
+            for (auto& user : users) {
                 if (user.getUsername() == username && user.getPassword() == password && !user.isAdmin()) {
-                currentUser = &user; // Assign the global pointer to the found user
+                    loadingAnimation();  // Show loading animation after successful login
+                    currentUser = &user;
+                    loginSuccess = true;
                     break;
                 }
             }
-            if (currentUser != nullptr) {
-                cout << "User login successful!" << endl;
-                staffDashboard(); // just add add to give access to user dashboard
+
+            if (loginSuccess) {
+                loadingAnimation();  // <-- Call loading animation here!
+                staffDashboard();
             } else {
-                cout << "Invalid username or password, or you are an admin. Please use the admin login." << endl;
+                cout << "\033[31mInvalid username or password, or you are an admin. Please use the admin login.\033[0m" << endl;
             }
             break;
 
         }
         case 3:{
             system("cls");
-            cout << "Returning to main menu..." << endl;
+            cout << "\033[31mReturning to main menu...\033[0m" << endl;
             break;
         }
         default:
-            cout << "Invalid choice. Please try again." << endl;
+            cout << "\033[31mInvalid input! Please enter a number between 1 and 3.\n\n\033[0m";
             break;
     }
 }
@@ -535,22 +782,33 @@ void userLogin() { // just add add to enable user to login or register
 // Staff dashboard for regular users
 void staffDashboard() { // just add add for allowing staff actions
     int choice;
-    system("cls");
-    do {
-        cout << "+--------------------------+\n";
-        cout << "|      User Dashboard     |" << endl;
-        cout << "+--------------------------+\n";
-        cout << "  Welcome, To Our shop pls enjoy buying what you want !!" << endl;
-        cout << "[1] Display All Stocks" << endl;
-        cout << "[2] Search Stock" << endl;
-        // cout << "[3] Buy Stock" << endl;
-        cout << "[3] Add Item to Cart" << endl; // Added Cart option
-        cout << "[4] View Cart" << endl;       // Added Cart option
-        cout << "[5] Checkout the cart" << endl;
-        cout << "[6] Logout" << endl;
-        cout << "Enter your choice: ";
-        cin >> choice;
+    // system("cls");
 
+   
+    do {
+        cout << "\033[34m"; 
+        cout << "                                            __  __  ___  ____  ____    ____    __    ___  _   _  ____  _____    __    ____  ____    " << endl;
+        cout << "                                           (  )(  )/ __)( ___)(  _ \\  (  _ \\  /__\\  / __)( )_( )(  _ \\(  _  )  /__\\  (  _ \\(  _ \\   " << endl;
+        cout << "                                            )(__)( \\__ \\ )__)  )   /   )(_) )/(__)\\ \\__ \\ ) _ (  ) _ < )(_)(  /(__)\\  )   / )(_) )  " << endl;
+        cout << "                                           (______)(___/(____)(_)\\_)  (____/(__)(__)(___/(_) (_)(____/(_____)(__)(__)(_)\\_)(____/   " << endl;
+        cout << "\033[0m"; 
+         SetColor(9);
+        cout << " " << endl;
+        cout << "                                                              Welcome, To Our shop pls enjoy buying what you want !!" << endl;
+        cout << "                                                                       [1] Display All Stocks" << endl;
+        cout << "                                                                       [2] Search Stock" << endl;
+        cout << "                                                                       [3] Add Item to Cart" << endl; // Added Cart option
+        cout << "                                                                       [4] View Cart" << endl;       // Added Cart option
+        cout << "                                                                       [5] Checkout the cart" << endl;
+        cout << "                                                                       [6] Logout" << endl;
+        cout << "                                                                           Enter your choice: ";
+    if (!(cin >> choice)) {
+        system("cls");  
+        cin.clear(); // clear fail state
+        cin.ignore(numeric_limits<streamsize>::max(), '\n'); // discard bad input
+        cout << "\033[31mInvalid input! Please enter a number between 1 and 6.\033[0m\n\n";
+        return staffDashboard(); 
+    }
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         switch(choice) {
@@ -564,11 +822,7 @@ void staffDashboard() { // just add add for allowing staff actions
                 searchStock();
                 break;
             }
-            // case 3:{
-            //     system("cls");
-            //     buyStock(); // just add add to allow purchasing items
-            //     break;
-            // }
+
             case 3:{
                 system("cls");
                 addItemToCart(); // Call the new function
@@ -583,27 +837,30 @@ void staffDashboard() { // just add add for allowing staff actions
                 if (currentUser) {
                     checkoutCart(currentUser->getUsername()); // Pass current user's username
                 } else {
-                    cout << "Error: No user logged in for checkout." << endl;
+                    cout << "\033[31mError: No user logged in for checkout.\033[0m" << endl;
                 }
                 break;
-            case 6:
+            case 6:{
+                system("cls");
                 cout << "Logging out..." << endl;
                 currentUser = nullptr; // Clear current user on logout
                 break;
-
+            }
 
             default:
-                cout << "Invalid choice. Please try again." << endl;
-                break;
+            system("cls");
+            // staffDashboard();
+            cout << "\033[31mInvalid choice. Please try again.\033[0m" << endl;
+            break;
         }
     } while (choice != 6);
 }
 
 // Buy Stock Function (for staff)
-// Buy Stock Function (for staff)
 void buyStock() {
+    SetColor(9);
     int id, quantity;
-    cout << "\n--- Buy Stock ---" << endl;
+    cout << "--- Buy Stock ---" << endl;
     cout << "Enter stock ID to purchase: ";
     cin >> id;
     cout << "Enter quantity: ";
@@ -648,10 +905,17 @@ void buyStock() {
 
 // Function to add an item to the global cart
 void addItemToCart() {
+    
     int id, qty;
-    cout << "+-----------------------+\n";
-    cout << "|       Add to Cart     |\n"; 
-    cout << "+-----------------------+\n";
+    cout << "\033[34m"; 
+    cout << "                                                      __    ____  ____     ____  _____     ___    __    ____  ____     " << endl;
+    cout << "                                                     /__\\  (  _ \\(  _ \\   (_  _)(  _  )   / __)  /__\\  (  _ \\(_  _)    " << endl;
+    cout << "                                                    /(__)\\  )(_) ))(_) )    )(   )(_)(   ( (__  /(__)\\  )   /  )(      " << endl;
+    cout << "                                                   (__)(__)(____/(____/    (__) (_____)   \\___)(__)(__)(_)\\_) (__)     " << endl;
+    cout << "\033[0m";
+
+    SetColor(9);
+    cout << " " << endl;
     displayAllStocks(); // Show available stocks
     cout << "Enter Stock ID: "; 
     cin >> id;
@@ -659,7 +923,7 @@ void addItemToCart() {
 
     auto it = find_if(stocks.begin(), stocks.end(), [id](const Stock& s){return s.getId()==id;});
     if (it==stocks.end()){ 
-        cout << "Item not found.\n"; 
+        cout << "\033[31mItem not found.\033[0m\n"; 
         return; 
     }
     cout << "Enter quantity: "; 
@@ -682,32 +946,34 @@ void addItemToCart() {
             cout << qty << " x " << it->getName() << " added to cart.\n";
         }
     } else {
-        cout << "Invalid quantity or insufficient stock. Available: " << it->getQuantity() << ".\n";
+        cout << "\033[31mInvalid quantity or insufficient stock. Available: 033[0m" << it->getQuantity() << ".\n";
     }
 }
 
 // Function to view the contents of the global cart
 void viewCart() {
-    cout << "+-----------------------+\n";
-    cout << "|        Your Cart      |\n";
-    cout << "+-----------------------+\n";
+    SetColor(9);
+    cout << "                                                                            +-----------------------+\n";
+    cout << "                                                                            |        Your Cart      |\n";
+    cout << "                                                                            +-----------------------+\n";
     if (cart.empty()){ 
-        cout << "Cart is empty.\n"; 
+        cout << "\033[31mCart is empty.033[0m\n"; 
         return; 
     }
     double total = 0;
-    cout << fixed << setprecision(2); // Set precision for currency
+    cout << "                                                                            \033[31m " << fixed << setprecision(2); // Set precision for currency
     for (auto &c : cart) {
         double itemTotal = c.first.getPrice() * c.second;
         cout << c.first.getName() << " x " << c.second << " = $" << itemTotal << endl;
-        total += itemTotal;
+        total +=itemTotal;
     }
-    cout << "-------------------\n";
-    cout << "Total: $" << total << endl;
+    cout << "                                                                             -----------------------\n";
+    cout << "                                                                              Total: $033[0m" << total << endl;
 }
 
 
 void printStockReport() {
+    SetColor(4);
     // ─── Current Date & Time ──────────────────────────────
     time_t now = time(nullptr);
     char dateBuf[100];
@@ -805,10 +1071,13 @@ void printStockReport() {
             cout << "(Displaying last 5 transactions. Total transactions: " << receipts.size() << ")" << endl;
         }
     }
+     cout << "\033[0m";
 }
 // Function to checkout the cart
 void checkoutCart(const string& username) {
-    cout << "\n--- Checking out Cart ---\n";
+    system("cls");
+    SetColor(9);
+    cout << "\n\033[31m --- Checking out Cart ---\n";
     if (cart.empty()) {
         cout << "Your cart is empty. Nothing to checkout.\n";
         return;
@@ -843,12 +1112,12 @@ void checkoutCart(const string& username) {
                 purchasedItemsForReceipt.push_back({*stock_it, quantityToBuy});
                 totalCartPrice += stock_it->getPrice() * quantityToBuy;
             } else {
-                cout << "Insufficient stock for " << stock_it->getName()
+                cout << "\033[31mInsufficient stock for " << stock_it->getName()
                           << ". Available: " << stock_it->getQuantity() << ". Purchase failed for this item.\n";
                 transactionSuccessful = false;
             }
         } else {
-            cout << "Error: Item ID " << id << " not found in stock. Skipping.\n";
+            cout << "Error: Item ID " << id << " not found in stock. Skipping.033[0m\n";
             transactionSuccessful = false;
         }
     }
@@ -873,7 +1142,3 @@ void checkoutCart(const string& username) {
         cart.clear();
     }
 }
-
-
-
-
