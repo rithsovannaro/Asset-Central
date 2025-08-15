@@ -14,7 +14,9 @@
 #include "../include/DisplayUtil.hpp"
 #include "../include/Receipt.hpp"
 #include <windows.h>
-#include <conio.h>   
+#include <conio.h>  
+#include <filesystem> 
+namespace fs = std::filesystem; 
 
 using namespace std;
 const int LOW_STOCK_THRESHOLD = 20; 
@@ -46,6 +48,7 @@ void trackInventory();
 void generateLowStockAlerts();
 void printStockReport();
 string getPasswordInput(const string& prompt);
+void backupStockData();
 
 // for User
 void addItemToCart();
@@ -292,6 +295,51 @@ void loadingAnimation() {
     std::cout << "                                                                      login successfull !" << std::endl;
 }
 
+void backupStockDataWithCSV() {
+    try {
+        // Create backup directory if it doesn't exist
+        std::string backupDir = "backup data";
+        if (!fs::exists(backupDir)) {
+            fs::create_directories(backupDir);
+            std::cout << "Created backup directory: " << backupDir << "\n";
+        }
+
+        // Create timestamp for backup filename
+        time_t now = time(nullptr);
+        char buf[50];
+        strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", localtime(&now));
+
+        // Create Excel backup
+        std::string backupFile = backupDir + "/stock_backup_" + buf + ".xlsx";
+        ExcelUtil::writeStockToFile(backupFile, stocks);
+
+        // Create CSV backup for easy reading
+        std::string csvBackupFile = backupDir + "/stock_backup_" + buf + ".csv";
+        std::ofstream csvFile(csvBackupFile);
+        
+        if (csvFile.is_open()) {
+            // Write CSV header
+            csvFile << "ID,Name,Quantity,Price\n";
+            
+            // Write stock data
+            for (const auto& stock : stocks) {
+                csvFile << stock.getId() << ","
+                       << "\"" << stock.getName() << "\"," 
+                       << stock.getQuantity() << ","
+                       << std::fixed << std::setprecision(2) << stock.getPrice() << "\n";
+            }
+            csvFile.close();
+        } else {
+            throw std::runtime_error("Could not create CSV backup file");
+        }
+        
+    }
+    catch (const std::exception& e) {
+        std::cout << " Backup failed: " << e.what() << "\n";
+        std::cout << "Please check if you have write permissions in the backup directory.\n";
+    }
+}
+
 // ─── Admin Login ────────────────────────────────────────────────
 void adminLogin() {
     system("cls");
@@ -353,7 +401,8 @@ void adminDashboard() {
         cout << "                                                                       [6] Track Inventory\n";
         cout << "                                                                       [7] Generate Low-Stock Alerts\n";
         cout << "                                                                       [8] Print Reports\n";
-        cout << "                                                                       [9] Logout\n";
+        cout << "                                                                       [9] Backup All Data \n";
+        cout << "                                                                       [10] Logout\n";
         cout << "                                                                           Enter your choice: ";
         if (!(cin >> choice)) {  
             system("cls");
@@ -404,7 +453,11 @@ void adminDashboard() {
                 printStockReport();
                 break;  
             }
-            case 9:{
+            case 9: {
+                backupStockDataWithCSV();
+                break;
+            }
+            case 10:{
                 system("cls");
                 cout << "Logging out..." << endl;
                 currentUser = nullptr;
