@@ -1,82 +1,98 @@
 #include "../include/DisplayUtil.hpp"
 #include <tabulate/table.hpp>
 using namespace std;
-void DisplayUtil::displayStocks(const std::vector<Stock>& stocks) {
+using namespace tabulate;
+void DisplayUtil::displayStocks(const std::vector<Stock>& stocks) { 
+    // Dynamic centering setup
+    const int tableWidth = 82;     // inside width of box
+    const int terminalWidth = 164; // adjust for your terminal width
+    int leftPadding = (terminalWidth - (tableWidth + 4)) / 2; // +4 for borders
+
+    auto padLeft = [&](const string& text) {
+        return string(leftPadding, ' ') + text;
+    };
+    
+    auto centerText = [&](const string& text) {
+        int spacesLeft = (tableWidth - text.size()) / 2;
+        int spacesRight = tableWidth - text.size() - spacesLeft;
+        return string(spacesLeft, ' ') + text + string(spacesRight, ' ');
+    };
 
     if (stocks.empty()) {
-        std::cout << "No stock items found." << std::endl;
+        // Enhanced "no stocks" message
+        cout << "\033[91m\033[1m";
+        cout << padLeft("╔══════════════════════════════════════════════════════════════════════════════════╗") << "\n";
+        cout << padLeft("║") << centerText("") << "║\n";
+        cout << padLeft("║") << "\033[93m" << centerText("📋 PRODUCT CATALOG - EMPTY 📋") << "\033[91m" << "║\n";
+        cout << padLeft("║") << centerText("") << "║\n";
+        cout << padLeft("╠══════════════════════════════════════════════════════════════════════════════════╣") << "\n";
+        cout << padLeft("║") << centerText("") << "║\n";
+        cout << padLeft("║") << "\033[96m" << centerText("❌ No stock items found in the inventory") << "\033[91m" << "║\n";
+        cout << padLeft("║") << centerText("") << "║\n";
+        cout << padLeft("║") << "\033[95m" << centerText("Please contact admin to add products") << "\033[91m" << "║\n";
+        cout << padLeft("║") << centerText("") << "║\n";
+        cout << padLeft("╚══════════════════════════════════════════════════════════════════════════════════╝") << "\n";
         return;
     }
 
-    // Create table with headers (no tabs)
-    tabulate::Table stocks_table;
-    stocks_table.add_row({"ID", "Name", "Quantity", "Price"});
+    // Enhanced header with stock count
+    cout << "\033[96m\033[1m";
+    cout << padLeft("╔══════════════════════════════════════════════════════════════════════════════════╗") << "\n";
+    cout << padLeft("║") << centerText("") << "║\n";
+    cout << padLeft("║") << "\033[93m" << centerText("📋 PRODUCT CATALOG - INVENTORY 📋") << "\033[96m" << "    ║\n";
+    cout << padLeft("║") << centerText("") << "║\n";
+    cout << padLeft("║") << "\033[95m" << centerText("Available Products: " + to_string(stocks.size()) + " items") << "\033[96m" << "║\n";
+    cout << padLeft("║") << centerText("") << "║\n";
+    cout << padLeft("╠══════════════════════════════════════════════════════════════════════════════════╣") << "\n";
+    cout << "\033[0m";
 
-    // Add stock data
+    // Enhanced table header with colors
+    cout << "\033[96m\033[1m";
+    cout << padLeft("║") << "\033[94m" << "  ID  " << "\033[96m" << "│" << "\033[94m" << "      Product Name      " << "\033[96m" << "│" 
+         << "\033[94m" << " Quantity " << "\033[96m" << " │" << "\033[94m" << "   Price ($)   " << "\033[96m" << "                       ║\n";
+    cout << padLeft("╠══════════════════════════════════════════════════════════════════════════════════╣") << "\n";
+    cout << "\033[0m";
+
+    // Display each stock item with enhanced formatting
     for (const auto& stock : stocks) {
-        stocks_table.add_row({
-            std::to_string(stock.getId()),
-            stock.getName(),
-            std::to_string(stock.getQuantity()),
-            std::to_string(stock.getPrice())
-        });
-    }
-
-    // Format table
-    stocks_table.format().font_style({tabulate::FontStyle::bold});
-    stocks_table[0].format()
-        .font_style({tabulate::FontStyle::bold})
-        .background_color(tabulate::Color::magenta);
-
-    // Convert table to string
-    std::stringstream ss;
-    ss << stocks_table;
-    std::string table_str = ss.str();
-
-    // Find widest line in table
-    size_t max_width = 0;
-    {
-        std::stringstream ss_lines(table_str);
-        std::string line;
-        while (std::getline(ss_lines, line)) {
-            if (line.length() > max_width)
-                max_width = line.length();
+        cout << "\033[96m\033[1m";
+        
+        // Format ID (center in 5 chars)
+        string id_str = to_string(stock.getId());
+        int id_padding = (5 - id_str.length()) / 2;
+        string formatted_id = string(id_padding, ' ') + id_str + string(5 - id_str.length() - id_padding, ' ');
+        
+        // Format Name (truncate/pad to 22 chars)
+        string name = stock.getName();
+        if (name.length() > 22) {
+            name = name.substr(0, 19) + "...";
         }
+        string formatted_name = name + string(22 - name.length(), ' ');
+        
+        // Format Quantity (center in 9 chars)
+        string qty_str = to_string(stock.getQuantity());
+        int qty_padding = (9 - qty_str.length()) / 2;
+        string formatted_qty = string(qty_padding, ' ') + qty_str + string(9 - qty_str.length() - qty_padding, ' ');
+        
+        // Format Price (center in 13 chars)
+        string price_str = to_string(stock.getPrice());
+        int price_padding = (13 - price_str.length()) / 2;
+        string formatted_price = string(price_padding, ' ') + price_str + string(13 - price_str.length() - price_padding, ' ');
+        
+        // Color coding based on quantity
+        string qty_color = "\033[92m"; // Green for good stock
+        if (stock.getQuantity() < 10) qty_color = "\033[93m"; // Yellow for low stock
+        if (stock.getQuantity() < 5) qty_color = "\033[91m";  // Red for very low stock
+        
+        cout << padLeft("║") << "\033[95m" << formatted_id << "\033[96m" << " │" 
+             << "\033[94m" << formatted_name << "\033[96m" << "  │" 
+             << qty_color << formatted_qty << "\033[96m" << "  │" 
+             << "\033[92m" << formatted_price << "\033[96m" << "                         ║\n";
     }
 
-    // Terminal width (adjust based on your console size)
-    const int console_width = 170;
-
-    // Calculate padding to center table
-    int padding = (console_width - static_cast<int>(max_width)) / 2;
-    if (padding < 0) padding = 0;
-
-    // Create title box matching table width
-    std::string title = "All Stocks";
-    int box_width = static_cast<int>(max_width);
-    std::string horizontal_line = "+" + std::string(box_width - 2, '-') + "+";
-
-    // Center the title box
-    int box_padding = (console_width - box_width) / 2;
-    if (box_padding < 0) box_padding = 0;
-
-    std::cout << std::string(box_padding, ' ') << horizontal_line << "\n";
-    int title_space = (box_width - 2 - static_cast<int>(title.size())) / 2;
-    std::cout << std::string(box_padding, ' ') 
-              << "|" << std::string(title_space, ' ')
-              << title
-              << std::string(box_width - 2 - title_space - static_cast<int>(title.size()), ' ')
-              << "|\n";
-    std::cout << std::string(box_padding, ' ') << horizontal_line << "\n";
-
-    // Print centered table (including header row)
-    std::stringstream ss_final(table_str);
-    std::string line;
-    while (std::getline(ss_final, line)) {
-        std::cout << std::string(padding, ' ') << line << "\n";
-    }
+    // Table footer with summary
+    cout << padLeft("╚══════════════════════════════════════════════════════════════════════════════════╝") << "\n";
 }
-
 
 void DisplayUtil::displayUsers(const std::vector<User>& users) {
     if (users.empty()) {
@@ -106,48 +122,4 @@ void DisplayUtil::displayUsers(const std::vector<User>& users) {
     std::cout << "                                                           ------------- User Accounts -------------" << std::endl;
     std::cout << users_table << std::endl;
 }
-
-
-    // // Apply some formatting for better aesthetics
-    // stocks_table.format().font_style({tabulate::FontStyle::bold});
-    // stocks_table[0].format().font_style({tabulate::FontStyle::bold})
-    //                         .background_color(tabulate::Color::magenta);
-    // // Convert table to string
-    // std::stringstream ss;
-    // ss << stocks_table;
-    // std::string table_str = ss.str();
-
-    // // Find the widest line
-    // size_t max_width = 1000;
-    // std::stringstream ss_lines(table_str);
-    // std::string line;
-    // while (std::getline(ss_lines, line)) {
-    //     if (line.length() > max_width) max_width = line.length();
-    // }
-
-    // // Assume console width (you can adjust this based on your terminal)
-    // const int console_width = 200;
-    // int padding = (console_width - static_cast<int>(max_width)) / 2;
-    // if (padding < 0) padding = 0;
-
-//     // Print title centered
-//     std::string title = "All Stocks";
-//     int title_padding = (console_width - static_cast<int>(title.size())) / 2;
-//     std::cout << std::string(title_padding, ' ') << "+--------------------+\n";
-//     std::cout << std::string(title_padding, ' ') << "|      All Stocks    |\n";
-//     std::cout << std::string(title_padding, ' ') << "+--------------------+\n";
-
-//     // Print table with padding
-//     std::stringstream ss_final(table_str);
-//     while (std::getline(ss_final, line)) {
-//         std::cout << std::string(padding, ' ') << line << "\n";
-//     }
-
-//     // Print the table to the console
-
-//     // std::cout << "+--------------------+\n";
-//     // std::cout << "|      All Stocks    |" << std::endl;
-//     // std::cout << "+--------------------+\n";
-//     // std::cout << stocks_table << endl;
-// }
 
