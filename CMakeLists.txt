@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 # Define the project name and language
-project(StockManagementSystem LANGUAGES CXX)
+project(ASSET CENTRAL LANGUAGES CXX)
 
 # Set the C++ standard to C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -38,18 +38,18 @@ set(SOURCE_FILES
 )
 
 # Create the executable with a descriptive name
-add_executable(StockManagementSystem ${SOURCE_FILES})
+add_executable(ASSET CENTRAL ${SOURCE_FILES})
 
 # Tell the compiler where to find the project's header files
-target_include_directories(StockManagementSystem PRIVATE include)
+target_include_directories(ASSET CENTRAL PRIVATE include)
 
 # Link the libraries to the executable
-target_link_libraries(StockManagementSystem PRIVATE xlnt tabulate)
+target_link_libraries(ASSET CENTRAL PRIVATE xlnt tabulate)
 
 # IMPORTANT: Fix the path for copying the DLL file
 # This command ensures that the xlnt.dll is copied to the executable's directory
-add_custom_command(TARGET StockManagementSystem POST_BUILD
+add_custom_command(TARGET ASSET CENTRAL POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
   "$<TARGET_FILE_DIR:xlnt>/xlnt.dll"
-  $<TARGET_FILE_DIR:StockManagementSystem>
+  $<TARGET_FILE_DIR:ASSET CENTRAL>
 )

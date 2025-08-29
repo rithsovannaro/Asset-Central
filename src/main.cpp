@@ -2558,7 +2558,7 @@ void printStockReport() {
 }
 void viewCart() {
     system("cls");
-    
+    string username = (currentUser != nullptr) ? currentUser->getUsername() : " ";
     // Dynamic centering setup
     const int tableWidth = 82;     // inside width of box
     const int terminalWidth = 164; // adjust for your terminal width
@@ -2676,7 +2676,7 @@ void viewCart() {
             // Checkout logic here
             cout << "\n" << padLeft("\033[92m💳 Proceeding to checkout...\033[0m");
             Sleep(1000);
-            // Call checkout function here
+            checkoutCart(username); 
             break; // Exit to allow checkoutCart to be called externally
         case 3:
             // Clear cart logic
@@ -2688,12 +2688,12 @@ void viewCart() {
             return staffDashboard();    
         default:
             cout << "\n" << padLeft("\033[91m❌ Invalid choice! Please try again.\033[0m");
+            cout << "\n" << padLeft("\033[93m📋 Press any key to continue menu...\033[0m");
+            cin.get();
             Sleep(1500);
             break;
     }
 
-    cout << "\n" << padLeft("\033[93m📋 Press any key to continue menu...\033[0m");
-    cin.get();
 }
 
 void checkoutCart(const string& username) {
